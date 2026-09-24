@@ -11,7 +11,7 @@
 
 namespace mindstellar\listingimport\Admin;
 
-use mindstellar\listingimport\Images\AddressGuard;
+use mindstellar\security\AddressGuard;
 use mindstellar\listingimport\Import\Source;
 
 /**

@@ -6,17 +6,16 @@
  */
 
 /**
- * An image address a partner sends is fetched only when every address it resolves to is
- * public, on the normal port, over http or https, including every redirect on the way; and
- * what arrives must be a real image under the size cap.
+ * An image is fetched only through the address guard, redirects included, from the IP the
+ * guard approved; and what arrives must be a real image under the size cap. The guard
+ * itself is core's AddressGuard, tested in core; a stand-in with fixed answers is used here.
  */
 
 require __DIR__ . '/lib/harness.php';
-foreach (array('AddressGuard', 'Transport', 'ImageSource', 'Downloader', 'Fetcher') as $class) {
+foreach (array('Transport', 'ImageSource', 'Downloader', 'Fetcher') as $class) {
     require __DIR__ . '/../src/Images/' . $class . '.php';
 }
 
-use mindstellar\listingimport\Images\AddressGuard;
 use mindstellar\listingimport\Images\Fetcher;
 use mindstellar\listingimport\Images\Transport;
 
@@ -31,48 +30,30 @@ $dns = array(
     'dual.example'      => array('2606:2800:220:1:248:1893:25c8:1946', '93.184.216.34'),
     'multi.example'     => array('93.184.216.1', '93.184.216.2', '93.184.216.3', '93.184.216.4'),
 );
-$guard = new AddressGuard(static fn (string $host) => $dns[$host] ?? array());
+/** Core's AddressGuard answers, from the DNS table above: private ranges are refused. */
+$guard = new class ($dns) {
+    private array $dns;
 
-harness_section('addresses that are fetched');
+    public function __construct(array $dns)
+    {
+        $this->dns = $dns;
+    }
 
-foreach (array(
-    'https://cdn.example/a.jpg',
-    'http://cdn.example/a.jpg',
-    'https://cdn.example:443/a.jpg',
-    'https://v6.example/a.jpg',
-    'https://93.184.216.34/a.jpg',
-) as $url) {
-    pin($url, true, $guard->check($url)['ok']);
-}
-pin('the approved IP is handed back for pinning', '93.184.216.34', $guard->check('https://cdn.example/a.jpg')['ip']);
-pin('IPv4 is preferred when a host has both', '93.184.216.34', $guard->check('https://dual.example/a.jpg')['ip']);
-pin('and every checked address is handed back, IPv4 first', array('93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'), $guard->check('https://dual.example/a.jpg')['ips']);
+    public function check(string $url): array
+    {
+        $ips = $this->dns[(string)parse_url($url, PHP_URL_HOST)] ?? array();
+        if ($ips === array()) {
+            return array('ok' => false, 'error' => 'The host name does not resolve.');
+        }
+        foreach ($ips as $ip) {
+            if (preg_match('/^(10\.|127\.|169\.254\.|fd)/', $ip)) {
+                return array('ok' => false, 'error' => 'The host is on a private or reserved network.');
+            }
+        }
 
-harness_section('addresses that are not');
-
-foreach (array(
-    'file:///etc/passwd'                     => 'Only http and https addresses are fetched.',
-    'gopher://cdn.example/'                  => 'Only http and https addresses are fetched.',
-    'ftp://cdn.example/a.jpg'                => 'Only http and https addresses are fetched.',
-    'https://cdn.example:8080/a.jpg'         => 'Only the standard port is fetched.',
-    'https://user:pw@cdn.example/a.jpg'      => 'An address with a user name or password is not fetched.',
-    'https://inside.example/a.jpg'           => 'The host is on a private or reserved network.',
-    'https://split.example/a.jpg'            => 'The host is on a private or reserved network.',
-    'https://v6local.example/a.jpg'          => 'The host is on a private or reserved network.',
-    'http://metadata.example/latest'         => 'The host is on a private or reserved network.',
-    'http://127.0.0.1/admin'                 => 'The host is on a private or reserved network.',
-    'http://[::1]/admin'                     => 'The host is on a private or reserved network.',
-    'http://[::ffff:127.0.0.1]/admin'        => 'The host is on a private or reserved network.',
-    'http://100.64.0.1/a.jpg'                => 'The host is on a private or reserved network.',
-    'http://0.0.0.0/a.jpg'                   => 'The host is on a private or reserved network.',
-    'http://[::7f00:1]/a.jpg'                => 'The host is on a private or reserved network.',
-    'http://[fec0::1]/a.jpg'                 => 'The host is on a private or reserved network.',
-    'http://[64:ff9b:1::a00:1]/a.jpg'        => 'The host is on a private or reserved network.',
-    'http://exa%6dple.com/a.jpg'             => 'The host name holds characters an address may not.',
-    'https://nowhere.example/a.jpg'          => 'The host name does not resolve.',
-) as $url => $reason) {
-    pin($url, $reason, $guard->check($url)['error'] ?? 'allowed');
-}
+        return array('ok' => true, 'ip' => $ips[0], 'ips' => $ips);
+    }
+};
 
 harness_section('downloading');
 

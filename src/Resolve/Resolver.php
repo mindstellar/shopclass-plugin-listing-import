@@ -94,9 +94,8 @@ final class Resolver
             }
         }
 
-        // Owner and contact. Core attaches a listing to the account whose address is in the
-        // contact e-mail field, so an owner is named by putting their address there. A record
-        // may only choose an account when its source allows it.
+        // Owner and contact. The owner goes to core as ownerId, so the contact address never
+        // picks an account. A record may only choose an account when its source allows it.
         $mayChoose = !empty($defaults['owners_from_records']);
         $owner     = null;
         if (isset($record['owner']) && !$mayChoose) {
@@ -115,12 +114,7 @@ final class Resolver
         $contact                = is_array($record['contact'] ?? null) ? $record['contact'] : array();
         $fields['contactName']  = $owner['name'] ?? (string)($contact['name'] ?? $defaults['contact_name'] ?? '');
         $fields['contactEmail'] = $owner['email'] ?? (string)($contact['email'] ?? '');
-        if ($owner === null && !$mayChoose && $fields['contactEmail'] !== ''
-            && $this->lookups->userByEmail($fields['contactEmail']) !== null
-        ) {
-            $warnings['contact.email'] = 'This address has an account here, and this source may not choose accounts; the source\'s contact address is used.';
-            $fields['contactEmail']    = '';
-        }
+        $fields['ownerId']      = (int)($owner['id'] ?? 0);
         if ($fields['contactEmail'] === '') {
             $fields['contactEmail'] = (string)($defaults['contact_email'] ?? '') ?: $this->site->contactEmail;
         }

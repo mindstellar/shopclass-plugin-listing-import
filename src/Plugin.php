@@ -11,7 +11,7 @@
 
 namespace mindstellar\listingimport;
 
-use mindstellar\listingimport\Images\AddressGuard;
+use mindstellar\security\AddressGuard;
 use mindstellar\listingimport\Images\CurlTransport;
 use mindstellar\listingimport\Images\Fetcher;
 use mindstellar\listingimport\Import\Batch;

@@ -59,7 +59,7 @@ harness_section('owner and contact');
 
 $trusted = array('owners_from_records' => true);
 $r = $resolver->resolve(array('owner' => array('email' => 'sam@example.com'), 'contact' => array('email' => 'other@example.com')) + $base, $trusted);
-pin('an owner\'s address is the contact, which is how core attaches the listing', array('Sam Seller', 'sam@example.com'), array($r['fields']['contactName'], $r['fields']['contactEmail']));
+pin('an owner is named to core by id, with their name and address as the contact', array(7, 'Sam Seller', 'sam@example.com'), array($r['fields']['ownerId'], $r['fields']['contactName'], $r['fields']['contactEmail']));
 $r = $resolver->resolve(array('owner' => array('user_id' => 99), 'contact' => array('name' => 'Jo', 'email' => 'jo@example.com', 'show_email' => true)) + $base, $trusted);
 pin('an unknown owner is a warning, and the record\'s contact stands', array('Jo', 'jo@example.com', 1), array($r['fields']['contactName'], $r['fields']['contactEmail'], $r['fields']['showEmail']));
 check('with a warning', isset($r['warnings']['owner']));
@@ -67,9 +67,9 @@ $r = $resolver->resolve($base, array('owner_user_id' => 7));
 pin('a source default owner', 'sam@example.com', $r['fields']['contactEmail']);
 
 $r = $resolver->resolve(array('owner' => array('user_id' => 7)) + $base);
-pin('a source that may not choose accounts ignores the record\'s owner', array('site@example.com', 'This source may not choose accounts; ignored.'), array($r['fields']['contactEmail'], $r['warnings']['owner'] ?? null));
+pin('a source that may not choose accounts ignores the record\'s owner', array(0, 'This source may not choose accounts; ignored.'), array($r['fields']['ownerId'], $r['warnings']['owner'] ?? null));
 $r = $resolver->resolve(array('contact' => array('email' => 'sam@example.com')) + $base, array('contact_email' => 'partner@example.com'));
-pin('nor can it reach an account through the contact address', array('partner@example.com', true), array($r['fields']['contactEmail'], isset($r['warnings']['contact.email'])));
+pin('a member\'s address as the contact picks no account', array(0, 'sam@example.com'), array($r['fields']['ownerId'], $r['fields']['contactEmail']));
 $r = $resolver->resolve(array('contact' => array('email' => 'jo@example.com')) + $base);
 pin('an address with no account stays the contact', 'jo@example.com', $r['fields']['contactEmail']);
 $r = $resolver->resolve($base, array('contact_email' => 'feeds@partner.example'));

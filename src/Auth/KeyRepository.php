@@ -46,17 +46,6 @@ interface KeyRepository
     public function update(int $id, array $fields): void;
 
     /**
-     * Count one request in the key's current minute, starting a new count when the minute
-     * has changed.
-     *
-     * @param int    $id
-     * @param string $minute the current minute, as 'Y-m-d H:i:00'
-     *
-     * @return int requests in this minute, this one included
-     */
-    public function hit(int $id, string $minute): int;
-
-    /**
      * @return array<int,array<string,mixed>> every key, newest first
      */
     public function all(): array;

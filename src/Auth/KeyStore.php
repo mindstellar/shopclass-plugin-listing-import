@@ -12,6 +12,7 @@
 namespace mindstellar\listingimport\Auth;
 
 use mindstellar\listingimport\Http\Response;
+use mindstellar\security\RateLimit;
 
 /**
  * API keys: making them, checking a request's token, and taking them away.
@@ -38,16 +39,23 @@ final class KeyStore
     /** @var callable(): int */
     private $clock;
 
+    /** @var callable(int, int): bool */
+    private $limiter;
+
     /**
      * @param KeyRepository      $keys
      * @param string             $pepper the site's signing key
      * @param callable|null      $clock  returns the current Unix time; time() by default
+     * @param callable|null      $limiter (key id, requests a minute) => whether this one is
+     *                                    allowed; core's RateLimit by default
      */
-    public function __construct(KeyRepository $keys, string $pepper, ?callable $clock = null)
+    public function __construct(KeyRepository $keys, string $pepper, ?callable $clock = null, ?callable $limiter = null)
     {
-        $this->keys   = $keys;
-        $this->pepper = $pepper;
-        $this->clock  = $clock ?? 'time';
+        $this->keys    = $keys;
+        $this->pepper  = $pepper;
+        $this->clock   = $clock ?? 'time';
+        $this->limiter = $limiter ?? static fn (int $id, int $perMinute): bool
+            => RateLimit::hit('listing_import_api', (string)$id, $perMinute, 60);
     }
 
     /**
@@ -159,11 +167,10 @@ final class KeyStore
      */
     public function throttle(int $id, int $perMinute): ?Response
     {
-        $now    = ($this->clock)();
-        $minute = date('Y-m-d H:i:00', $now);
-        if ($this->keys->hit($id, $minute) <= $perMinute) {
+        if (($this->limiter)($id, $perMinute)) {
             return null;
         }
+        $now = ($this->clock)();
         $response                         = Response::error(429, 'rate_limited', 'Too many requests. Try again shortly.');
         $response->headers['Retry-After'] = (string)(60 - (int)date('s', $now));
 

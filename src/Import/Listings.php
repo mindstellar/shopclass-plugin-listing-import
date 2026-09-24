@@ -60,10 +60,10 @@ interface Listings
     public function siteModerates(): bool;
 
     /**
-     * Whether the owner of this address may publish one more listing, when the site limits
-     * listings. An address with no account is never limited.
+     * Whether this account may publish one more listing, when the site limits listings.
+     * No account (0) is never limited.
      */
-    public function canPublish(string $ownerEmail): bool;
+    public function canPublish(int $ownerId): bool;
 
     /**
      * Why the site would refuse this image file, or null when it takes it. Core refuses the

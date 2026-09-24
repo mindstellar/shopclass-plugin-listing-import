@@ -118,7 +118,7 @@ final class Importer
         }
 
         if ($itemId === null && !empty($source->policy['respect_caps'])
-            && !$this->listings->canPublish((string)$resolved['fields']['contactEmail'])
+            && !$this->listings->canPublish((int)($resolved['fields']['ownerId'] ?? 0))
         ) {
             return $this->fail($source, $runId, $externalId, array('owner' => 'The owner has reached their listing limit.'), $warnings);
         }

@@ -90,13 +90,13 @@ pin('an update never holds', array(), $GLOBALS['__listings']->held);
 harness_section('listing limits');
 
 [$importer, $source] = fresh();
-$GLOBALS['__listings']->limited = array('sam@example.com');
+$GLOBALS['__listings']->limited = array(7);
 $source->defaults['owners_from_records'] = true;
 $owned = array('owner' => array('email' => 'sam@example.com')) + $record;
 $r     = $importer->import($source, $owned, 1);
 pin('an owner at their limit gets no new listing', array('failed', array('owner' => 'The owner has reached their listing limit.')), array($r['status'], $r['errors']));
 [$importer, $source] = fresh(array('respect_caps' => false));
-$GLOBALS['__listings']->limited = array('sam@example.com');
+$GLOBALS['__listings']->limited = array(7);
 pin('unless the source ignores limits', 'created', $importer->import($source, $owned, 1)['status']);
 
 harness_section('failures');

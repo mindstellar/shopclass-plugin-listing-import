@@ -30,7 +30,8 @@ final class Fetcher implements ImageSource, Downloader
 
     private const TYPES = array(IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_WEBP);
 
-    private AddressGuard $guard;
+    /** @var \mindstellar\security\AddressGuard */
+    private object $guard;
 
     private Transport $transport;
 
@@ -39,12 +40,12 @@ final class Fetcher implements ImageSource, Downloader
     private int $maxBytes;
 
     /**
-     * @param AddressGuard $guard
+     * @param \mindstellar\security\AddressGuard $guard or anything with the same check()
      * @param Transport    $transport
      * @param string       $dir      the temp folder, with a trailing slash
      * @param int          $maxBytes the largest image accepted
      */
-    public function __construct(AddressGuard $guard, Transport $transport, string $dir, int $maxBytes = 8388608)
+    public function __construct(object $guard, Transport $transport, string $dir, int $maxBytes = 8388608)
     {
         $this->guard     = $guard;
         $this->transport = $transport;

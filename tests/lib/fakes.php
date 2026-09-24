@@ -39,7 +39,7 @@ final class MemoryKeyRepository implements KeyRepository
     public function insert(array $row): int
     {
         $id                = count($this->rows) + 1;
-        $this->rows[$id]   = $row + array('pk_i_id' => $id, 'dt_window' => null, 'i_window_count' => 0, 'dt_last_used' => null, 's_last_ip' => '');
+        $this->rows[$id]   = $row + array('pk_i_id' => $id, 'dt_last_used' => null, 's_last_ip' => '');
 
         return $id;
     }
@@ -47,15 +47,6 @@ final class MemoryKeyRepository implements KeyRepository
     public function update(int $id, array $fields): void
     {
         $this->rows[$id] = $fields + $this->rows[$id];
-    }
-
-    public function hit(int $id, string $minute): int
-    {
-        $row = &$this->rows[$id];
-        $row['i_window_count'] = $row['dt_window'] === $minute ? $row['i_window_count'] + 1 : 1;
-        $row['dt_window']      = $minute;
-
-        return $row['i_window_count'];
     }
 
     public function all(): array
@@ -92,7 +83,12 @@ function fake_api(int $perMinute = 60): Api
     $GLOBALS['__now']      = $GLOBALS['__now'] ?? 1790000000;
     $GLOBALS['__repo']     = new MemoryKeyRepository();
     $GLOBALS['__failures'] = new MemoryFailureCounter();
-    $GLOBALS['__keys']     = new KeyStore($GLOBALS['__repo'], 'test-pepper', static fn () => $GLOBALS['__now']);
+    $GLOBALS['__hits']     = array();
+    $GLOBALS['__keys']     = new KeyStore($GLOBALS['__repo'], 'test-pepper', static fn () => $GLOBALS['__now'], static function (int $id, int $perMinute): bool {
+        $bucket = $id . '@' . intdiv($GLOBALS['__now'], 60);
+
+        return ($GLOBALS['__hits'][$bucket] = ($GLOBALS['__hits'][$bucket] ?? 0) + 1) <= $perMinute;
+    });
     $GLOBALS['__store']    = new MemoryStore();
     $GLOBALS['__listings'] = new MemoryListings();
 
@@ -435,9 +431,9 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
         return $this->moderates;
     }
 
-    public function canPublish(string $ownerEmail): bool
+    public function canPublish(int $ownerId): bool
     {
-        return !in_array($ownerEmail, $this->limited, true);
+        return !in_array($ownerId, $this->limited, true);
     }
 }
 

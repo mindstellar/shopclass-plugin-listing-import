@@ -61,20 +61,6 @@ final class DbKeyRepository implements KeyRepository
         );
     }
 
-    public function hit(int $id, string $minute): int
-    {
-        // One statement, so two requests at once cannot both read the old count.
-        osc_db_execute(
-            'UPDATE ' . $this->table() . ' SET'
-            . ' i_window_count = IF(dt_window = ?, i_window_count + 1, 1),'
-            . ' dt_window = ?'
-            . ' WHERE pk_i_id = ?',
-            array($minute, $minute, $id)
-        );
-
-        return (int)osc_db_scalar('SELECT i_window_count FROM ' . $this->table() . ' WHERE pk_i_id = ?', array($id));
-    }
-
     public function all(): array
     {
         return osc_db_select('SELECT * FROM ' . $this->table() . ' ORDER BY pk_i_id DESC');
