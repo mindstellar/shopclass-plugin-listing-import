@@ -16,6 +16,8 @@
 - `GET /api/v1/runs/{id}` says how a run went: its counts, whether it is finished, and each failed record with its reasons. A key sees only its own source's runs.
 - `php oc-cli.php import:run --file=` imports a JSON or NDJSON file at once, with `--dry-run` to change nothing; `import:status` lists recent runs; `import:key:create` makes a key.
 - Pulled feeds: a source can fetch a JSON, NDJSON or CSV feed, or another Shopclass site's RSS, every so many minutes. Field names that differ from ours are mapped one per line.
+- A JSON feed may wrap its list in an object, such as `{"products": [...]}`.
+- An image the site would refuse, by type or size, is skipped with a warning instead of failing the listing.
 - A listing whose record leaves its feed is deactivated, never deleted, and comes back when the record returns. A feed where most records fail deactivates nothing.
 - Sources are managed under **Plugins → Listing import: sources**: a list, an editor core draws from the plugin's declaration, a preview of what a feed would import, and Fetch now.
 - A feed address must pass the same public-address check as images, and a feed declaring an XML entity is refused before it is parsed.

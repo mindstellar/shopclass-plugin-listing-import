@@ -8,3 +8,4 @@ SPEC.md
 *.zip
 .distignore
 tools
+assets/screenshot-*

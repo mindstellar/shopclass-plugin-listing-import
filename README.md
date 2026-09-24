@@ -6,6 +6,15 @@ moderation, spam checks, listing limits and expiry.
 
 > **Status: in development.** Not released yet.
 
+![Import sources](assets/screenshot-1.png)
+
+| | |
+|---|---|
+| ![A feed source](assets/screenshot-2.png) | ![Feed preview](assets/screenshot-3.png) |
+| A feed source | Preview a feed before it changes anything |
+| ![API keys](assets/screenshot-4.png) | |
+| API keys with their own permissions | |
+
 ## Requirements
 
 - Shopclass 6.4.0 or later
@@ -147,7 +156,8 @@ The site's own rules apply to every listing: moderation, spam checks, listing li
 ## Pull a feed
 
 **Plugins → Listing import: sources → New source.** Give the feed address, its format, and how
-often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS.
+often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS. A JSON feed
+may be a plain list or an object holding one list, such as `{"products": [...]}`.
 
 If the feed names its fields differently, map them one per line:
 
