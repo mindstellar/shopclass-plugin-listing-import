@@ -15,8 +15,14 @@ use mindstellar\listingimport\Auth\DbKeyRepository;
 use mindstellar\listingimport\Auth\FailureCounter;
 use mindstellar\listingimport\Auth\KeyStore;
 use mindstellar\listingimport\Http\Request;
+use mindstellar\listingimport\Import\CoreListings;
+use mindstellar\listingimport\Import\DbStore;
+use mindstellar\listingimport\Import\Importer;
+use mindstellar\listingimport\Import\Store;
+use mindstellar\listingimport\Resolve\DbLookups;
+use mindstellar\listingimport\Resolve\Resolver;
+use mindstellar\listingimport\Resolve\Site;
 use mindstellar\listingimport\Http\Response;
-use mindstellar\listingimport\Record\Validator;
 use mindstellar\security\SigningKey;
 
 /**
@@ -37,16 +43,24 @@ final class Api
 
     private int $perMinute;
 
+    private Importer $importer;
+
+    private Store $store;
+
     /**
      * @param KeyStore       $keys
      * @param FailureCounter $failures
      * @param int            $perMinute requests a key may send each minute
+     * @param Importer       $importer
+     * @param Store          $store
      */
-    public function __construct(KeyStore $keys, FailureCounter $failures, int $perMinute)
+    public function __construct(KeyStore $keys, FailureCounter $failures, int $perMinute, Importer $importer, Store $store)
     {
         $this->keys      = $keys;
         $this->failures  = $failures;
         $this->perMinute = max(1, $perMinute);
+        $this->importer  = $importer;
+        $this->store     = $store;
     }
 
     /**
@@ -56,10 +70,13 @@ final class Api
      */
     public static function handle(): void
     {
-        $api = new self(
+        $store = new DbStore();
+        $api   = new self(
             new KeyStore(new DbKeyRepository(), SigningKey::get()),
             new FailureCounter(),
-            (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60)
+            (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60),
+            new Importer(new Resolver(new DbLookups(), Site::current()), new CoreListings(), $store),
+            $store
         );
         $api->dispatch(Request::fromGlobals())->send();
     }
@@ -101,44 +118,53 @@ final class Api
             }
         }
 
-        return $this->$handler($request);
+        return $this->$handler($request, $key ?? null);
     }
 
     /**
      * @return Response
      */
-    private function ping(): Response
+    private function ping(Request $request, ?array $key): Response
     {
         return Response::ok(array('plugin' => 'listing-import', 'version' => Plugin::VERSION));
     }
 
     /**
-     * Check a record. Importing it arrives with the importer.
+     * Import one record into the key's source.
      *
-     * @param Request $request
+     * @param Request             $request
+     * @param array<string,mixed> $key the key the request was made with
      *
      * @return Response
      */
-    private function createListing(Request $request): Response
+    private function createListing(Request $request, array $key): Response
     {
         $record = $request->json();
         if ($record instanceof Response) {
             return $record;
         }
-        $check = Validator::check($record);
-        if ($check['errors'] !== array()) {
-            $response                   = Response::error(422, 'invalid_record', 'The record has errors; see fields.');
-            $response->body['error']['fields'] = $check['errors'];
-            if ($check['warnings'] !== array()) {
-                $response->body['warnings'] = $check['warnings'];
-            }
-
-            return $response;
+        $source = $this->store->source($key['fk_i_source_id'] === null ? null : (int)$key['fk_i_source_id']);
+        if ($source === null) {
+            return Response::error(409, 'no_source', 'This key imports into a source that is missing or switched off.');
         }
 
-        $response = Response::error(501, 'not_implemented', 'The record is valid, but importing is not available yet.');
-        if ($check['warnings'] !== array()) {
-            $response->body['warnings'] = $check['warnings'];
+        $runId  = $this->store->startRun($source->id, 'push', false);
+        $result = $this->importer->import($source, $record, $runId);
+        $this->store->finishRun($runId, array($result['status'] => 1), 'Key ' . $key['s_key_id']);
+
+        if ($result['status'] === Importer::FAILED) {
+            $response                          = Response::error(422, 'not_imported', 'The record was not imported; see fields.');
+            $response->body['error']['fields'] = $result['errors'];
+        } else {
+            $response = Response::ok(array(
+                'status'      => $result['status'],
+                'external_id' => $result['external_id'],
+                'item_id'     => $result['item_id'],
+                'run_id'      => $runId,
+            ), $result['status'] === Importer::CREATED ? 201 : 200);
+        }
+        if ($result['warnings'] !== array()) {
+            $response->body['warnings'] = $result['warnings'];
         }
 
         return $response;

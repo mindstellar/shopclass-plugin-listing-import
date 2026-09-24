@@ -93,6 +93,188 @@ function fake_api(int $perMinute = 60): Api
     $GLOBALS['__repo']     = new MemoryKeyRepository();
     $GLOBALS['__failures'] = new MemoryFailureCounter();
     $GLOBALS['__keys']     = new KeyStore($GLOBALS['__repo'], 'test-pepper', static fn () => $GLOBALS['__now']);
+    $GLOBALS['__store']    = new MemoryStore();
+    $GLOBALS['__listings'] = new MemoryListings();
 
-    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute);
+    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute, fake_importer(), $GLOBALS['__store']);
+}
+
+/**
+ * An importer over the in-memory store and listings, on a two-language site.
+ *
+ * @return \mindstellar\listingimport\Import\Importer
+ */
+function fake_importer(): \mindstellar\listingimport\Import\Importer
+{
+    $GLOBALS['__store']    = $GLOBALS['__store'] ?? new MemoryStore();
+    $GLOBALS['__listings'] = $GLOBALS['__listings'] ?? new MemoryListings();
+
+    return new \mindstellar\listingimport\Import\Importer(
+        new \mindstellar\listingimport\Resolve\Resolver(
+            new MemoryLookups(),
+            new \mindstellar\listingimport\Resolve\Site(array('en_US', 'de_DE'), 'en_US', ',', 'site@example.com')
+        ),
+        $GLOBALS['__listings'],
+        $GLOBALS['__store']
+    );
+}
+
+/** A small site: two categories under Vehicles, EUR, one user, Germany with Bayern and München. */
+final class MemoryLookups implements \mindstellar\listingimport\Resolve\Lookups
+{
+    public function categoryById(int $id): ?int
+    {
+        return in_array($id, array(1, 2, 3), true) ? $id : null;
+    }
+
+    public function categoryBySlug(string $slug): ?int
+    {
+        return array('vehicles' => 1, 'bikes' => 2, 'cars' => 3)[$slug] ?? null;
+    }
+
+    public function categoryByPath(array $names): ?int
+    {
+        return array('vehicles' => 1, 'vehicles/bikes' => 2, 'vehicles/cars' => 3)[strtolower(implode('/', $names))] ?? null;
+    }
+
+    public function categoryByName(string $name): ?int
+    {
+        return array('vehicles' => 1, 'bikes' => 2, 'cars' => 3)[strtolower($name)] ?? null;
+    }
+
+    public function currencyEnabled(string $code): bool
+    {
+        return $code === 'EUR';
+    }
+
+    public function userById(int $id): ?array
+    {
+        return $id === 7 ? array('id' => 7, 'name' => 'Sam Seller', 'email' => 'sam@example.com') : null;
+    }
+
+    public function userByEmail(string $email): ?array
+    {
+        return $email === 'sam@example.com' ? $this->userById(7) : null;
+    }
+
+    public function country(string $codeOrName): ?string
+    {
+        return in_array(strtolower($codeOrName), array('de', 'germany', 'deutschland'), true) ? 'DE' : null;
+    }
+
+    public function region(string $countryCode, string $name): ?array
+    {
+        return $countryCode === 'DE' && strtolower($name) === 'bayern' ? array('id' => 11, 'name' => 'Bayern') : null;
+    }
+
+    public function city(string $countryCode, ?int $regionId, string $name): ?array
+    {
+        return $countryCode === 'DE' && in_array(strtolower($name), array('münchen', 'munchen'), true)
+            ? array('id' => 111, 'name' => 'München', 'region_id' => 11) : null;
+    }
+
+    public function fieldBySlug(string $slug): ?int
+    {
+        return array('colour' => 5, 'gears' => 6)[$slug] ?? null;
+    }
+}
+
+/** Sources, the record map, runs and log lines in arrays. Source 1 is the default push source. */
+final class MemoryStore implements \mindstellar\listingimport\Import\Store
+{
+    /** @var array<int,\mindstellar\listingimport\Import\Source> */
+    public array $sources = array();
+    public array $map     = array();
+    public array $runs    = array();
+    public array $logs    = array();
+
+    public function __construct()
+    {
+        $this->sources[1] = new \mindstellar\listingimport\Import\Source(1, 'API');
+    }
+
+    public function source(?int $id): ?\mindstellar\listingimport\Import\Source
+    {
+        return $this->sources[$id ?? 1] ?? null;
+    }
+
+    public function mapped(int $sourceId, string $externalId): ?array
+    {
+        return $this->map[$sourceId . '|' . $externalId] ?? null;
+    }
+
+    public function map(int $sourceId, string $externalId, int $itemId, string $hash): void
+    {
+        $this->map[$sourceId . '|' . $externalId] = array('fk_i_item_id' => $itemId, 's_hash' => $hash);
+    }
+
+    public function seen(int $sourceId, string $externalId): void
+    {
+        $this->map[$sourceId . '|' . $externalId]['seen'] = true;
+    }
+
+    public function startRun(int $sourceId, string $trigger, bool $dryRun): int
+    {
+        $this->runs[] = array('source' => $sourceId, 'trigger' => $trigger, 'dry' => $dryRun);
+
+        return count($this->runs);
+    }
+
+    public function finishRun(int $runId, array $counts, string $summary): void
+    {
+        $this->runs[$runId - 1]['counts'] = $counts;
+    }
+
+    public function log(int $runId, int $sourceId, string $externalId, string $level, string $message, array $context = array()): void
+    {
+        $this->logs[] = array($runId, $externalId, $level, $message, $context);
+    }
+}
+
+/** Listings in an array; core's refusal can be forced for a title. */
+final class MemoryListings implements \mindstellar\listingimport\Import\Listings
+{
+    public array $items     = array();
+    public array $held      = array();
+    public bool $moderates  = false;
+    public array $limited   = array();
+    public string $refuseTitle = 'REFUSE';
+
+    public function exists(int $itemId): bool
+    {
+        return isset($this->items[$itemId]);
+    }
+
+    public function create(array $fields, array $meta)
+    {
+        if (in_array($this->refuseTitle, $fields['title'], true)) {
+            return 'Title too short.';
+        }
+        $id               = count($this->items) + 100;
+        $this->items[$id] = array('fields' => $fields, 'meta' => $meta, 'edits' => 0);
+
+        return $id;
+    }
+
+    public function update(int $itemId, array $fields, array $meta)
+    {
+        $this->items[$itemId] = array('fields' => $fields, 'meta' => $meta, 'edits' => $this->items[$itemId]['edits'] + 1);
+
+        return true;
+    }
+
+    public function hold(int $itemId): void
+    {
+        $this->held[] = $itemId;
+    }
+
+    public function siteModerates(): bool
+    {
+        return $this->moderates;
+    }
+
+    public function canPublish(string $ownerEmail): bool
+    {
+        return !in_array($ownerEmail, $this->limited, true);
+    }
 }

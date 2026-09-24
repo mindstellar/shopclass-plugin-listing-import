@@ -14,7 +14,7 @@ use mindstellar\migration\MigrationInterface;
 
 /**
  * The five tables: where listings come from, the keys that may push them, which listing
- * each outside record became, and a row per run with its log.
+ * each outside record became, and a row per run with its log. Plus one push source, "API".
  *
  * CREATE TABLE IF NOT EXISTS, so a run that stopped half way can simply run again.
  */
@@ -51,6 +51,15 @@ return new class () implements MigrationInterface {
             . ' INDEX idx_due (b_enabled, e_kind, dt_next_run)'
             . ')' . $tail
         );
+
+        // Keys that name no source import into the first push source, so there is always one.
+        if ((int)$conn->scalar('SELECT COUNT(*) FROM ' . $p . 't_listing_import_source') === 0) {
+            $conn->execute(
+                'INSERT INTO ' . $p . "t_listing_import_source (s_name, e_kind, s_defaults, s_policy, dt_created)"
+                . " VALUES ('API', 'push', '{}', ?, NOW())",
+                array(json_encode(array('status' => 'site', 'respect_caps' => true)))
+            );
+        }
 
         $conn->execute(
             'CREATE TABLE IF NOT EXISTS ' . $p . 't_listing_import_key ('

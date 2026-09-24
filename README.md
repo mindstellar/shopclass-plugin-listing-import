@@ -4,9 +4,8 @@ Import listings into Shopclass from other systems: a keyed REST API, and schedul
 CSV and RSS feeds. Every listing goes through the same checks as one posted by hand:
 moderation, spam checks, listing limits and expiry.
 
-> **Status: in development.** API keys and the record check work. The importer, images,
-> feeds and the queue come next; until then `POST /api/v1/listings` checks a record and
-> answers `501`.
+> **Status: in development.** API keys and importing one record at a time work. Images,
+> feeds, batches and the queue come next.
 
 ## Requirements
 

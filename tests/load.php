@@ -69,6 +69,7 @@ pin('the settings page is declared under the plugin id', array('listing-import')
 pin('its fields', array('rate_limit', 'retention_days'), array_column($GLOBALS['__settings']['listing-import']['groups'][0]['fields'], 'name'));
 pin('one API route, under /api/v1/', array('api/v1/(.+)', 'api/v1/{path}'), $GLOBALS['__routes'][Plugin::ROUTE] ?? null);
 pin('the keys screen is an admin route file', array('listing-import/keys', 'listing-import/keys', 'listing-import/admin/keys.php'), $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Keys::ROUTE] ?? null);
+pin('a deleted listing is forgotten', array(array(\mindstellar\listingimport\Import\DbStore::class, 'forget')), $GLOBALS['__hooks']['before_delete_item'] ?? null);
 pin('with a menu entry and a post handler', array(
     array(array(\mindstellar\listingimport\Admin\Keys::class, 'menu')),
     array(array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost')),

@@ -25,6 +25,7 @@ Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issu
 
 use mindstellar\listingimport\Admin\Keys;
 use mindstellar\listingimport\Api;
+use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Plugin;
 
 if (!defined('ABS_PATH')) {
@@ -55,6 +56,9 @@ osc_add_hook('init', array(Plugin::class, 'upgrade'));
 
 osc_add_route_hook(Plugin::ROUTE, 'api/v1/(.+)', 'api/v1/{path}');
 osc_add_hook(Plugin::ROUTE, array(Api::class, 'handle'));
+
+// A listing an admin deletes is forgotten, so its record makes a new one only when it changes.
+osc_add_hook('before_delete_item', array(DbStore::class, 'forget'));
 
 // The API keys screen.
 osc_add_route(Keys::ROUTE, 'listing-import/keys', 'listing-import/keys', osc_plugin_folder(__FILE__) . 'admin/keys.php');
