@@ -16,6 +16,8 @@ use mindstellar\listingimport\Auth\FailureCounter;
 use mindstellar\listingimport\Auth\KeyStore;
 use mindstellar\listingimport\Http\Request;
 use mindstellar\listingimport\Import\Batch;
+use mindstellar\listingimport\Import\CoreListings;
+use mindstellar\listingimport\Import\Listings;
 use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Import\Importer;
 use mindstellar\listingimport\Import\Store;
@@ -28,12 +30,19 @@ use mindstellar\security\SigningKey;
  */
 final class Api
 {
-    /** method path => [handler, scope]. A path may hold a {id}; a null scope is open to anyone. */
-    private const ROUTES = array(
-        'GET ping'            => array('ping', null),
-        'POST listings'       => array('createListing', KeyStore::SCOPE_WRITE),
-        'POST listings:batch' => array('createBatch', KeyStore::SCOPE_WRITE),
-        'GET runs/{id}'       => array('showRun', KeyStore::SCOPE_RUNS),
+    /**
+     * method path => [handler, scope]. {id} is a number and {ext} an external id, which core has
+     * already decoded and so cannot hold a slash; a null scope is open to anyone.
+     */
+    public const ROUTES = array(
+        'GET ping'              => array('ping', null),
+        'GET openapi.json'      => array('openapi', null),
+        'POST listings'         => array('createListing', KeyStore::SCOPE_WRITE),
+        'POST listings:batch'   => array('createBatch', KeyStore::SCOPE_WRITE),
+        'GET listings/{ext}'    => array('showListing', KeyStore::SCOPE_WRITE),
+        'PUT listings/{ext}'    => array('putListing', KeyStore::SCOPE_WRITE),
+        'DELETE listings/{ext}' => array('deleteListing', KeyStore::SCOPE_DELETE),
+        'GET runs/{id}'         => array('showRun', KeyStore::SCOPE_RUNS),
     );
 
     private KeyStore $keys;
@@ -48,6 +57,8 @@ final class Api
 
     private Batch $batch;
 
+    private Listings $listings;
+
     /**
      * @param KeyStore       $keys
      * @param FailureCounter $failures
@@ -55,9 +66,18 @@ final class Api
      * @param Importer       $importer
      * @param Store          $store
      * @param Batch          $batch
+     * @param Listings       $listings
      */
-    public function __construct(KeyStore $keys, FailureCounter $failures, int $perMinute, Importer $importer, Store $store, Batch $batch)
-    {
+    public function __construct(
+        KeyStore $keys,
+        FailureCounter $failures,
+        int $perMinute,
+        Importer $importer,
+        Store $store,
+        Batch $batch,
+        Listings $listings
+    ) {
+        $this->listings  = $listings;
         $this->batch     = $batch;
         $this->keys      = $keys;
         $this->failures  = $failures;
@@ -80,7 +100,8 @@ final class Api
             (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60),
             Plugin::importer(),
             $store,
-            Plugin::batch()
+            Plugin::batch(),
+            new CoreListings()
         );
         $api->dispatch(Request::fromGlobals())->send();
     }
@@ -144,9 +165,18 @@ final class Api
     private function createListing(Request $request, array $key): Response
     {
         $record = $request->json();
-        if ($record instanceof Response) {
-            return $record;
-        }
+
+        return $record instanceof Response ? $record : $this->importOne($record, $key);
+    }
+
+    /**
+     * @param array<string,mixed> $record
+     * @param array<string,mixed> $key
+     *
+     * @return Response
+     */
+    private function importOne(array $record, array $key): Response
+    {
         $source = $this->source($key);
         if ($source instanceof Response) {
             return $source;
@@ -172,6 +202,100 @@ final class Api
         }
 
         return $response;
+    }
+
+    /**
+     * The API described in OpenAPI 3.1, for client generators and API tools.
+     *
+     * @return Response
+     */
+    private function openapi(): Response
+    {
+        $spec = json_decode((string)file_get_contents(dirname(__DIR__) . '/openapi.json'), true);
+
+        return new Response(200, is_array($spec) ? $spec : array());
+    }
+
+    /**
+     * Where one record stands: the listing it became, and whether it is still live.
+     *
+     * @param Request             $request
+     * @param array<string,mixed> $key
+     * @param array<int,string>   $args the external id
+     *
+     * @return Response
+     */
+    private function showListing(Request $request, array $key, array $args): Response
+    {
+        $source = $this->source($key);
+        if ($source instanceof Response) {
+            return $source;
+        }
+        $mapped = $this->store->mapped($source->id, $args[0]);
+        $itemId = $mapped === null || $mapped['fk_i_item_id'] === null ? null : (int)$mapped['fk_i_item_id'];
+        if ($itemId === null || !$this->listings->exists($itemId)) {
+            return Response::error(404, 'not_found', 'No listing for this external id.');
+        }
+
+        return Response::ok(array(
+            'external_id' => $args[0],
+            'item_id'     => $itemId,
+            'status'      => ($mapped['e_status'] ?? 'active') === 'retired' ? 'removed_from_feed' : 'active',
+            'url'         => $this->listings->url($itemId),
+            'last_seen'   => $mapped['dt_last_seen'] ?? null,
+            'synced_at'   => $mapped['dt_synced'] ?? null,
+        ));
+    }
+
+    /**
+     * Create or replace the listing for an external id with the whole record.
+     *
+     * @param Request             $request
+     * @param array<string,mixed> $key
+     * @param array<int,string>   $args the external id
+     *
+     * @return Response
+     */
+    private function putListing(Request $request, array $key, array $args): Response
+    {
+        $record = $request->json();
+        if ($record instanceof Response) {
+            return $record;
+        }
+        if (isset($record['external_id']) && (string)$record['external_id'] !== $args[0]) {
+            return Response::error(422, 'id_mismatch', 'The external_id in the body is not the one in the address.');
+        }
+        $record['external_id'] = $args[0];
+
+        return $this->importOne($record, $key);
+    }
+
+    /**
+     * Delete the listing for an external id. The owner asked, so it really is deleted.
+     *
+     * @param Request             $request
+     * @param array<string,mixed> $key
+     * @param array<int,string>   $args the external id
+     *
+     * @return Response
+     */
+    private function deleteListing(Request $request, array $key, array $args): Response
+    {
+        $source = $this->source($key);
+        if ($source instanceof Response) {
+            return $source;
+        }
+        $mapped = $this->store->mapped($source->id, $args[0]);
+        $itemId = $mapped === null || $mapped['fk_i_item_id'] === null ? null : (int)$mapped['fk_i_item_id'];
+        if ($itemId === null || !$this->listings->exists($itemId)) {
+            return Response::error(404, 'not_found', 'No listing for this external id.');
+        }
+        if (!$this->listings->delete($itemId)) {
+            return Response::error(500, 'not_deleted', 'The listing could not be deleted.');
+        }
+        $this->store->forgetRecord($source->id, $args[0]);
+
+        return Response::ok(array('external_id' => $args[0], 'item_id' => $itemId, 'deleted' => true));
     }
 
     /**
@@ -280,7 +404,7 @@ final class Api
      */
     private static function regex(string $pattern): string
     {
-        return '#^' . str_replace('\\{id\\}', '([0-9]+)', preg_quote($pattern, '#')) . '$#';
+        return '#^' . str_replace(array('\\{id\\}', '\\{ext\\}'), array('([0-9]+)', '([^/]+)'), preg_quote($pattern, '#')) . '$#';
     }
 
     /**

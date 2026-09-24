@@ -79,6 +79,9 @@ interface Store
      */
     public function unseen(int $sourceId, string $since): array;
 
+    /** Forget an outside record entirely. */
+    public function forgetRecord(int $sourceId, string $externalId): void;
+
     /** Mark an outside record as gone from its feed. */
     public function retire(int $sourceId, string $externalId): void;
 

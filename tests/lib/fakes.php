@@ -107,7 +107,7 @@ function fake_api(int $perMinute = 60): Api
         }
     );
 
-    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute, $importer, $GLOBALS['__store'], $batch);
+    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute, $importer, $GLOBALS['__store'], $batch, $GLOBALS['__listings']);
 }
 
 /**
@@ -288,6 +288,11 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
         return $out;
     }
 
+    public function forgetRecord(int $sourceId, string $externalId): void
+    {
+        unset($this->map[$sourceId . '|' . $externalId]);
+    }
+
     public function retire(int $sourceId, string $externalId): void
     {
         $this->map[$sourceId . '|' . $externalId]['e_status'] = 'retired';
@@ -394,6 +399,18 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
     }
 
     public array $inactive = array();
+
+    public function delete(int $itemId): bool
+    {
+        unset($this->items[$itemId]);
+
+        return true;
+    }
+
+    public function url(int $itemId): string
+    {
+        return 'https://site.example/item_i' . $itemId;
+    }
 
     public function deactivate(int $itemId): void
     {

@@ -41,6 +41,12 @@ interface Listings
      */
     public function update(int $itemId, array $fields, array $meta, array $photos = array());
 
+    /** Delete a listing, as its owner asked. */
+    public function delete(int $itemId): bool;
+
+    /** The public address of a listing. */
+    public function url(int $itemId): string;
+
     /** Take a listing off the site without deleting it: it left its feed. */
     public function deactivate(int $itemId): void;
 

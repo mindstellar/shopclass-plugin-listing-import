@@ -201,6 +201,14 @@ final class DbStore implements Store
         return $out;
     }
 
+    public function forgetRecord(int $sourceId, string $externalId): void
+    {
+        osc_db_execute(
+            'DELETE FROM ' . $this->t('item') . ' WHERE fk_i_source_id = ? AND s_external_id = ?',
+            array($sourceId, $externalId)
+        );
+    }
+
     public function retire(int $sourceId, string $externalId): void
     {
         osc_db_execute(

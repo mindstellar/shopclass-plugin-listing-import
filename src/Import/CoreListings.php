@@ -76,6 +76,21 @@ final class CoreListings implements Listings
         return is_string($result) ? $result : ($result === false ? 'The listing could not be saved.' : true);
     }
 
+    public function delete(int $itemId): bool
+    {
+        $secret = osc_db_scalar('SELECT s_secret FROM ' . DB_TABLE_PREFIX . 't_item WHERE pk_i_id = ?', array($itemId));
+        if ($secret === null) {
+            return false;
+        }
+
+        return (bool)(new ItemActions(true))->delete((string)$secret, $itemId);
+    }
+
+    public function url(int $itemId): string
+    {
+        return (string)osc_item_url_ns($itemId);
+    }
+
     public function deactivate(int $itemId): void
     {
         (new ItemActions(true))->deactivate($itemId);
