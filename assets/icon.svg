@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Listing import">
+  <rect width="128" height="128" rx="24" fill="#8a5a2b"/>
+  <rect x="58" y="22" width="12" height="44" rx="6" fill="#fff"/>
+  <path d="M44 54 64 74 84 54" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="26" y="84" width="76" height="22" rx="8" fill="#fff" opacity=".85"/>
+</svg>

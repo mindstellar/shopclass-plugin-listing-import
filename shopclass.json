@@ -1,0 +1,21 @@
+{
+  "$schema": "../schema/package.schema.json",
+  "slug": "listing-import",
+  "type": "plugin",
+  "categories": [
+    "admin-tools"
+  ],
+  "tags": [
+    "import",
+    "api",
+    "feed",
+    "csv",
+    "rss"
+  ],
+  "short_description": "Import listings from other systems through a keyed REST API or scheduled JSON, CSV and RSS feeds.",
+  "license": "GPL-3.0-or-later",
+  "support": {
+    "issues": "https://github.com/mindstellar/shopclass-plugin-listing-import/issues",
+    "docs": "https://github.com/mindstellar/shopclass-plugin-listing-import#readme"
+  }
+}
