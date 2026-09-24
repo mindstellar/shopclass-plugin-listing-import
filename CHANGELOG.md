@@ -22,5 +22,7 @@
 - Import log lines older than the retention setting are deleted once a day.
 - Every request is a run with its own log lines, and a record that fails names each problem by its field.
 - The plugin installs its five tables through core's migration runner and removes them on uninstall.
+- `PUT`, `GET` and `DELETE /api/v1/listings/{external_id}` replace, read and delete one listing by your id.
+- `GET /api/v1/openapi.json` describes the whole API in OpenAPI 3.1.
 - `GET /api/v1/ping` answers with the plugin's version.
 - A settings page for the request limit per key and how long import logs are kept.
