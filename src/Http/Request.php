@@ -84,12 +84,9 @@ final class Request
             fclose($stream);
         }
 
-        // A friendly address hands the route its path still encoded; a query string is decoded already.
-        $path = Params::getParamString('path');
-
         return new self(
             (string)Params::getServerParam('REQUEST_METHOD'),
-            filter_has_var(INPUT_GET, 'path') ? $path : rawurldecode($path),
+            Params::getParamString('path'),
             $authorization,
             (string)Params::getServerParam('REMOTE_ADDR'),
             (string)Params::getServerParam('CONTENT_TYPE'),
