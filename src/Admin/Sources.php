@@ -23,9 +23,9 @@ final class Sources
 {
     public const ROUTE = 'listing-import-sources';
 
-    public const EDIT_ROUTE = 'listing-import-source';
+    public const EDIT_ROUTE = 'listing-import-sources-edit';
 
-    public const PREVIEW_ROUTE = 'listing-import-preview';
+    public const PREVIEW_ROUTE = 'listing-import-sources-preview';
 
     /** @var array<string,mixed>|null a refused save's values, for the editor to show again */
     public static ?array $retry = null;

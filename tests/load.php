@@ -83,7 +83,7 @@ pin('each hour, old downloaded images are swept and due feeds are queued', array
 pin('a deleted listing is forgotten', array(array(\mindstellar\listingimport\Import\DbStore::class, 'forget')), $GLOBALS['__hooks']['before_delete_item'] ?? null);
 pin('the sources screens are admin route files', array(
     'listing-import/admin/sources.php', 'listing-import/admin/source.php', 'listing-import/admin/preview.php',
-), array_map(static fn ($r) => $GLOBALS['__routes'][$r][2] ?? null, array('listing-import-sources', 'listing-import-source', 'listing-import-preview')));
+), array_map(static fn ($r) => $GLOBALS['__routes'][$r][2] ?? null, array('listing-import-sources', 'listing-import-sources-edit', 'listing-import-sources-preview')));
 pin('each screen group has a menu entry and a post handler', array(
     array(array(\mindstellar\listingimport\Admin\Sources::class, 'menu'), array(\mindstellar\listingimport\Admin\Keys::class, 'menu')),
     array(array(\mindstellar\listingimport\Admin\Sources::class, 'handlePost'), array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost')),
