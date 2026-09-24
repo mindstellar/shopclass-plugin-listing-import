@@ -75,3 +75,22 @@ function harness_result(): int
 
     return $GLOBALS['failCount'] === 0 ? 0 : 1;
 }
+
+/**
+ * Load the plugin's classes on demand, and the in-memory fakes they are tested with.
+ *
+ * @return void
+ */
+function harness_plugin(): void
+{
+    if (!defined('ABS_PATH')) {
+        define('ABS_PATH', '/tmp/');
+    }
+    spl_autoload_register(static function (string $class): void {
+        $prefix = 'mindstellar\\listingimport\\';
+        if (strncmp($class, $prefix, strlen($prefix)) === 0) {
+            require __DIR__ . '/../../src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+        }
+    });
+    require_once __DIR__ . '/fakes.php';
+}

@@ -11,14 +11,7 @@
  */
 
 require __DIR__ . '/lib/harness.php';
-define('ABS_PATH', '/tmp/');
-spl_autoload_register(static function (string $class): void {
-    $prefix = 'mindstellar\\listingimport\\';
-    if (strncmp($class, $prefix, strlen($prefix)) === 0) {
-        require __DIR__ . '/../src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-    }
-});
-require __DIR__ . '/lib/fakes.php';
+harness_plugin();
 
 use mindstellar\listingimport\Api;
 use mindstellar\listingimport\Auth\KeyStore;

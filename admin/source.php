@@ -9,15 +9,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+use mindstellar\listingimport\Admin\Guard;
 use mindstellar\listingimport\Admin\SourceForm;
 use mindstellar\listingimport\Admin\Sources;
 
 if (!defined('ABS_PATH')) {
     exit('Direct access is not allowed.');
 }
-if (osc_is_moderator()) {
-    osc_admin_empty(array('icon' => 'bi-shield-lock', 'title' => __('Only an administrator can manage import sources.', 'listing-import')));
-
+if (!Guard::view(__('Only an administrator can manage import sources.', 'listing-import'))) {
     return;
 }
 

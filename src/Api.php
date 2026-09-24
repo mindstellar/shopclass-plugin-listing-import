@@ -241,8 +241,8 @@ final class Api
             return $source;
         }
         $mapped = $this->store->mapped($source->id, $args[0]);
-        $itemId = $mapped === null || $mapped['fk_i_item_id'] === null ? null : (int)$mapped['fk_i_item_id'];
-        if ($itemId === null || !$this->listings->exists($itemId)) {
+        $itemId = $this->liveItem($mapped);
+        if ($itemId === null) {
             return Response::error(404, 'not_found', 'No listing for this external id.');
         }
 
@@ -294,9 +294,8 @@ final class Api
         if ($source instanceof Response) {
             return $source;
         }
-        $mapped = $this->store->mapped($source->id, $args[0]);
-        $itemId = $mapped === null || $mapped['fk_i_item_id'] === null ? null : (int)$mapped['fk_i_item_id'];
-        if ($itemId === null || !$this->listings->exists($itemId)) {
+        $itemId = $this->liveItem($this->store->mapped($source->id, $args[0]));
+        if ($itemId === null) {
             return Response::error(404, 'not_found', 'No listing for this external id.');
         }
         if (!$this->listings->delete($itemId)) {
@@ -368,6 +367,20 @@ final class Api
             'finished_at' => $run['dt_finished'] === null ? null : (string)$run['dt_finished'],
             'failures'    => $this->store->runErrors((int)$run['pk_i_id'], 50),
         ));
+    }
+
+    /**
+     * The listing a mapped record points at, while it is still on the site.
+     *
+     * @param array<string,mixed>|null $mapped
+     *
+     * @return int|null
+     */
+    private function liveItem(?array $mapped): ?int
+    {
+        $itemId = $mapped === null || $mapped['fk_i_item_id'] === null ? null : (int)$mapped['fk_i_item_id'];
+
+        return $itemId !== null && $this->listings->exists($itemId) ? $itemId : null;
     }
 
     /**

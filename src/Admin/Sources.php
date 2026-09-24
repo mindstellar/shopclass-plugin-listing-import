@@ -58,10 +58,7 @@ final class Sources
             return;
         }
         osc_csrf_check();
-        if (osc_is_moderator()) {
-            osc_add_flash_error_message(__('Only an administrator can manage import sources.', 'listing-import'), 'admin');
-            osc_redirect_to(osc_admin_base_url(true));
-        }
+        Guard::post(__('Only an administrator can manage import sources.', 'listing-import'));
 
         $id = Params::getParamInt('id') ?: null;
         switch (Params::getParamString('li_do')) {

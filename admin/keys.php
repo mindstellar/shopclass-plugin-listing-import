@@ -9,6 +9,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+use mindstellar\listingimport\Admin\Guard;
 use mindstellar\listingimport\Admin\Keys;
 use mindstellar\listingimport\Auth\DbKeyRepository;
 use mindstellar\listingimport\Auth\KeyStore;
@@ -18,12 +19,7 @@ if (!defined('ABS_PATH')) {
     exit('Direct access is not allowed.');
 }
 
-if (osc_is_moderator()) {
-    osc_admin_empty(array(
-        'icon'  => 'bi-shield-lock',
-        'title' => __('Only an administrator can manage API keys.', 'listing-import'),
-    ));
-
+if (!Guard::view(__('Only an administrator can manage API keys.', 'listing-import'))) {
     return;
 }
 
