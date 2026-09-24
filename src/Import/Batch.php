@@ -34,18 +34,22 @@ final class Batch
 
     private Store $store;
 
+    private Listings $listings;
+
     /** @var callable(string, array<string,mixed>): mixed */
     private $enqueue;
 
     /**
      * @param Importer      $importer
      * @param Store         $store
-     * @param callable|null $enqueue queues a job; osc_job_enqueue() by default
+     * @param Listings      $listings the listings a finished feed run takes off the site
+     * @param callable|null $enqueue  queues a job; osc_job_enqueue() by default
      */
-    public function __construct(Importer $importer, Store $store, ?callable $enqueue = null)
+    public function __construct(Importer $importer, Store $store, Listings $listings, ?callable $enqueue = null)
     {
         $this->importer = $importer;
         $this->store    = $store;
+        $this->listings = $listings;
         $this->enqueue  = $enqueue ?? 'osc_job_enqueue';
     }
 
@@ -78,7 +82,7 @@ final class Batch
                 'record'    => $record,
             ));
         }
-        $this->store->closeIfDone($runId);
+        $this->finish($runId, $source);
 
         return $runId;
     }
@@ -102,7 +106,7 @@ final class Batch
             $result = $this->importer->import($source, $record, $runId, !empty($payload['dry_run']));
             $this->store->addCounts($runId, array($result['status'] => 1));
         }
-        $this->store->closeIfDone($runId);
+        $this->finish($runId, $source);
     }
 
     /**
@@ -122,8 +126,43 @@ final class Batch
             $result = $this->importer->import($source, is_array($record) ? $record : array(), $runId, $dryRun);
             $this->store->addCounts($runId, array($result['status'] => 1));
         }
-        $this->store->closeIfDone($runId);
+        $this->finish($runId, $source);
 
         return $runId;
+    }
+
+    /**
+     * Close the run once every record is counted. A full fetch of a feed that finishes also
+     * takes off the site every listing whose record was not in it -- deactivated, never
+     * deleted, and back on the site if the record returns.
+     *
+     * @param int         $runId
+     * @param Source|null $source
+     *
+     * @return void
+     */
+    private function finish(int $runId, ?Source $source): void
+    {
+        if (!$this->store->closeIfDone($runId) || $source === null) {
+            return;
+        }
+        $run = $this->store->run($runId);
+        if ($run === null || $run['s_trigger'] !== 'pull' || (int)$run['b_dry_run'] === 1 || (int)$run['i_total'] === 0
+            || ($source->policy['missing'] ?? Source::MISSING_DEACTIVATE) !== Source::MISSING_DEACTIVATE
+        ) {
+            return;
+        }
+        // A feed where most records failed is more likely broken than emptied.
+        if ((int)$run['i_failed'] * 2 > (int)$run['i_total']) {
+            $this->store->log($runId, $source->id, '', 'warning', 'Most records failed, so no listing was deactivated.');
+
+            return;
+        }
+        foreach ($this->store->unseen($source->id, (string)$run['dt_started']) as $gone) {
+            $this->listings->deactivate($gone['item_id']);
+            $this->store->retire($source->id, $gone['external_id']);
+            $this->store->log($runId, $source->id, $gone['external_id'], 'info', 'Left the feed; listing ' . $gone['item_id'] . ' deactivated.');
+            $this->store->addCounts($runId, array('retired' => 1));
+        }
     }
 }

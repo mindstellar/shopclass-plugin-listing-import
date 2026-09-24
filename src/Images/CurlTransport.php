@@ -52,7 +52,7 @@ final class CurlTransport implements Transport
             // A server can send no length, or a false one; this stops the body at the cap anyway.
             CURLOPT_XFERINFOFUNCTION => static fn ($c, $total, $now) => $now > $maxBytes ? 1 : 0,
             CURLOPT_USERAGENT        => 'Shopclass-ListingImport/1.0',
-            CURLOPT_HTTPHEADER       => array('Accept: image/*'),
+            CURLOPT_HTTPHEADER       => array('Accept: */*'),
         ));
         $ok       = curl_exec($curl);
         $status   = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);

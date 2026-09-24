@@ -45,6 +45,10 @@ pin('an unknown one with no default is an error', 'No such category here, and th
 $r = $resolver->resolve(array('category' => 'Boats') + $base, array('category' => 1));
 pin('with a default, it is used and said', array(1, false), array($r['fields']['catId'], isset($r['errors']['category'])));
 check('as a warning', isset($r['warnings']['category']));
+$none = $base;
+unset($none['category']);
+$r = $resolver->resolve($none, array('category' => 1));
+pin('a record naming no category takes the default quietly', array(1, false), array($r['fields']['catId'], isset($r['warnings']['category'])));
 
 harness_section('prices');
 

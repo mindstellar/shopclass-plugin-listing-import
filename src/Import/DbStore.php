@@ -178,12 +178,51 @@ final class DbStore implements Store
         return $errors;
     }
 
-    public function closeIfDone(int $runId): void
+    public function closeIfDone(int $runId): bool
     {
-        osc_db_execute(
+        return osc_db_execute(
             'UPDATE ' . $this->t('run') . ' SET dt_finished = ? WHERE pk_i_id = ? AND dt_finished IS NULL'
             . ' AND i_created + i_updated + i_unchanged + i_retired + i_failed >= i_total',
             array($this->now(), $runId)
+        ) > 0;
+    }
+
+    public function unseen(int $sourceId, string $since): array
+    {
+        $out = array();
+        foreach (osc_db_select(
+            'SELECT s_external_id, fk_i_item_id FROM ' . $this->t('item') . " WHERE fk_i_source_id = ? AND e_status = 'active'"
+            . ' AND fk_i_item_id IS NOT NULL AND dt_last_seen < ?',
+            array($sourceId, $since)
+        ) as $row) {
+            $out[] = array('external_id' => (string)$row['s_external_id'], 'item_id' => (int)$row['fk_i_item_id']);
+        }
+
+        return $out;
+    }
+
+    public function retire(int $sourceId, string $externalId): void
+    {
+        osc_db_execute(
+            'UPDATE ' . $this->t('item') . " SET e_status = 'retired' WHERE fk_i_source_id = ? AND s_external_id = ?",
+            array($sourceId, $externalId)
+        );
+    }
+
+    public function dueSources(string $now): array
+    {
+        return array_map(array(Source::class, 'fromRow'), osc_db_select(
+            'SELECT * FROM ' . $this->t('source') . " WHERE e_kind = 'pull' AND b_enabled = 1 AND s_url <> ''"
+            . ' AND (dt_next_run IS NULL OR dt_next_run <= ?)',
+            array($now)
+        ));
+    }
+
+    public function scheduleNext(int $sourceId, string $next, string $status): void
+    {
+        osc_db_execute(
+            'UPDATE ' . $this->t('source') . ' SET dt_next_run = ?, dt_last_run = ?, s_last_status = ? WHERE pk_i_id = ?',
+            array($next, $this->now(), mb_substr($status, 0, 255), $sourceId)
         );
     }
 

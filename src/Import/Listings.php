@@ -41,6 +41,12 @@ interface Listings
      */
     public function update(int $itemId, array $fields, array $meta, array $photos = array());
 
+    /** Take a listing off the site without deleting it: it left its feed. */
+    public function deactivate(int $itemId): void;
+
+    /** Put a listing back on the site: it returned to its feed. */
+    public function activate(int $itemId): void;
+
     /** Hold a listing for an admin to review. */
     public function hold(int $itemId): void;
 

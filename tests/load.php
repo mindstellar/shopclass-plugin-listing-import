@@ -79,11 +79,14 @@ pin('queued records have a job handler, and logs are pruned daily', array(
 ), array($GLOBALS['__hooks']['register_jobs'] ?? null, $GLOBALS['__hooks']['cron_daily'] ?? null));
 pin('the commands join oc-cli.php', array(array(\mindstellar\listingimport\Cli::class, 'commands')), $GLOBALS['__hooks']['filter:cli_commands'] ?? null);
 pin('as import:run, import:status and import:key:create', array('import:run', 'import:status', 'import:key:create'), array_keys(\mindstellar\listingimport\Cli::commands(array())));
-pin('old downloaded images are swept hourly', array(array(Plugin::class, 'sweep')), $GLOBALS['__hooks']['cron_hourly'] ?? null);
+pin('each hour, old downloaded images are swept and due feeds are queued', array(array(Plugin::class, 'sweep'), array(Plugin::class, 'schedule')), $GLOBALS['__hooks']['cron_hourly'] ?? null);
 pin('a deleted listing is forgotten', array(array(\mindstellar\listingimport\Import\DbStore::class, 'forget')), $GLOBALS['__hooks']['before_delete_item'] ?? null);
-pin('with a menu entry and a post handler', array(
-    array(array(\mindstellar\listingimport\Admin\Keys::class, 'menu')),
-    array(array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost')),
+pin('the sources screens are admin route files', array(
+    'listing-import/admin/sources.php', 'listing-import/admin/source.php', 'listing-import/admin/preview.php',
+), array_map(static fn ($r) => $GLOBALS['__routes'][$r][2] ?? null, array('listing-import-sources', 'listing-import-source', 'listing-import-preview')));
+pin('each screen group has a menu entry and a post handler', array(
+    array(array(\mindstellar\listingimport\Admin\Sources::class, 'menu'), array(\mindstellar\listingimport\Admin\Keys::class, 'menu')),
+    array(array(\mindstellar\listingimport\Admin\Sources::class, 'handlePost'), array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost')),
 ), array($GLOBALS['__hooks']['admin_menu_init'] ?? null, $GLOBALS['__hooks']['init_admin'] ?? null));
 pin('the route hook answers with Api::handle', array(array(Api::class, 'handle')), $GLOBALS['__hooks'][Plugin::ROUTE] ?? null);
 

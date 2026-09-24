@@ -12,7 +12,7 @@
  */
 
 require __DIR__ . '/lib/harness.php';
-foreach (array('AddressGuard', 'Transport', 'ImageSource', 'Fetcher') as $class) {
+foreach (array('AddressGuard', 'Transport', 'ImageSource', 'Downloader', 'Fetcher') as $class) {
     require __DIR__ . '/../src/Images/' . $class . '.php';
 }
 

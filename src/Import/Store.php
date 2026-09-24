@@ -69,8 +69,28 @@ interface Store
      */
     public function runErrors(int $runId, int $limit): array;
 
-    /** Mark a run finished once every one of its records is counted. */
-    public function closeIfDone(int $runId): void;
+    /** Mark a run finished once every one of its records is counted; true when this call did. */
+    public function closeIfDone(int $runId): bool;
+
+    /**
+     * Records of a source not seen since a time, whose listings are still live.
+     *
+     * @return array<int,array{external_id: string, item_id: int}>
+     */
+    public function unseen(int $sourceId, string $since): array;
+
+    /** Mark an outside record as gone from its feed. */
+    public function retire(int $sourceId, string $externalId): void;
+
+    /**
+     * Enabled pull sources due to be fetched.
+     *
+     * @return array<int,Source>
+     */
+    public function dueSources(string $now): array;
+
+    /** When a source is next fetched, and how its last fetch went. */
+    public function scheduleNext(int $sourceId, string $next, string $status): void;
 
     /** Delete log lines older than a date; returns how many. */
     public function pruneLogs(string $before): int;

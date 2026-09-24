@@ -18,6 +18,7 @@ use mindstellar\listingimport\Import\Batch;
 use mindstellar\listingimport\Import\CoreListings;
 use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Import\Importer;
+use mindstellar\listingimport\Import\Pull;
 use mindstellar\listingimport\Resolve\DbLookups;
 use mindstellar\listingimport\Resolve\Resolver;
 use mindstellar\listingimport\Resolve\Site;
@@ -93,7 +94,31 @@ final class Plugin
      */
     public static function batch(): Batch
     {
-        return new Batch(self::importer(), new DbStore());
+        return new Batch(self::importer(), new DbStore(), new CoreListings());
+    }
+
+    /**
+     * Feeds are downloaded through the same guard as images, up to 20 MB.
+     *
+     * @return Pull
+     */
+    public static function pull(): Pull
+    {
+        return new Pull(
+            new Fetcher(new AddressGuard(), new CurlTransport(30), self::tempDir(), 20971520),
+            self::batch(),
+            new DbStore()
+        );
+    }
+
+    /**
+     * Queue a fetch for every feed that is due. Runs each hour.
+     *
+     * @return void
+     */
+    public static function schedule(): void
+    {
+        self::pull()->schedule();
     }
 
     /**
@@ -106,6 +131,12 @@ final class Plugin
     {
         osc_job_register_handler(Batch::JOB, static function ($job): void {
             self::batch()->work($job->payload());
+        });
+        osc_job_register_handler(Pull::JOB, static function ($job): void {
+            $source = (new DbStore())->source((int)$job->get('source_id'));
+            if ($source !== null) {
+                self::pull()->fetch($source);
+            }
         });
     }
 

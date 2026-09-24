@@ -80,13 +80,13 @@ final class Importer
         $check      = Validator::check($record);
         $warnings   = $check['warnings'];
         if ($check['errors'] !== array()) {
-            return $this->fail($source, $runId, $externalId, $check['errors'], $warnings);
+            return $this->fail($source, $runId, $externalId, $check['errors'], $warnings, $dryRun);
         }
 
         $resolved = $this->resolver->resolve($record, $source->defaults);
         $warnings += $resolved['warnings'];
         if ($resolved['errors'] !== array()) {
-            return $this->fail($source, $runId, $externalId, $resolved['errors'], $warnings);
+            return $this->fail($source, $runId, $externalId, $resolved['errors'], $warnings, $dryRun);
         }
 
         $hash   = self::hash($record);
@@ -96,16 +96,24 @@ final class Importer
             $itemId = null;
         }
 
+        // A listing taken off the site because its record left the feed goes back on when the
+        // record returns.
+        $retired = $itemId !== null && ($mapped['e_status'] ?? 'active') === 'retired';
+        if ($retired && !$dryRun) {
+            $this->listings->activate($itemId);
+        }
+
         if ($itemId !== null && $mapped['s_hash'] === $hash) {
             if (!$dryRun) {
-                $this->store->seen($source->id, $externalId);
+                $this->store->map($source->id, $externalId, $itemId, $hash, json_decode((string)($mapped['s_image_hashes'] ?? ''), true) ?: array());
             }
 
-            return $this->done(self::UNCHANGED, $itemId, $externalId, $warnings);
+            return $this->done($retired ? self::UPDATED : self::UNCHANGED, $itemId, $externalId, $warnings);
         }
 
         if ($dryRun) {
-            return $this->done($itemId === null ? self::CREATED : self::UPDATED, $itemId, $externalId, $warnings);
+            return $this->done($itemId === null ? self::CREATED : self::UPDATED, $itemId, $externalId, $warnings)
+                + array('fields' => $resolved['fields']);
         }
 
         if ($itemId === null && !empty($source->policy['respect_caps'])
@@ -234,11 +242,19 @@ final class Importer
     /**
      * @param array<string,string> $errors
      * @param array<string,string> $warnings
+     * @param bool                 $dryRun   a dry run logs nothing
      *
      * @return array{status: string, item_id: ?int, external_id: string, errors: array<string,string>, warnings: array<string,string>}
      */
-    private function fail(Source $source, int $runId, string $externalId, array $errors, array $warnings): array
+    private function fail(Source $source, int $runId, string $externalId, array $errors, array $warnings, bool $dryRun = false): array
     {
+        if ($dryRun) {
+            return array('status' => self::FAILED, 'item_id' => null, 'external_id' => $externalId, 'errors' => $errors, 'warnings' => $warnings);
+        }
+        // Still in the feed, even if not importable now: its listing must not be retired for it.
+        if ($externalId !== '' && $this->store->mapped($source->id, $externalId) !== null) {
+            $this->store->seen($source->id, $externalId);
+        }
         $this->store->log($runId, $source->id, $externalId, 'error', 'Not imported.', array('errors' => $errors));
 
         return array('status' => self::FAILED, 'item_id' => null, 'external_id' => $externalId, 'errors' => $errors, 'warnings' => $warnings);

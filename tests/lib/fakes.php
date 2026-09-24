@@ -101,6 +101,7 @@ function fake_api(int $perMinute = 60): Api
     $batch                 = new \mindstellar\listingimport\Import\Batch(
         $importer,
         $GLOBALS['__store'],
+        $GLOBALS['__listings'],
         static function (string $type, array $payload) {
             $GLOBALS['__jobs'][] = array($type, $payload);
         }
@@ -217,12 +218,14 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
 
     public function map(int $sourceId, string $externalId, int $itemId, string $hash, array $imageHashes = array()): void
     {
-        $this->map[$sourceId . '|' . $externalId] = array('fk_i_item_id' => $itemId, 's_hash' => $hash, 's_image_hashes' => json_encode($imageHashes));
+        $this->map[$sourceId . '|' . $externalId] = array(
+            'fk_i_item_id' => $itemId, 's_hash' => $hash, 's_image_hashes' => json_encode($imageHashes), 'e_status' => 'active', 'seen_at' => $this->tick,
+        );
     }
 
     public function seen(int $sourceId, string $externalId): void
     {
-        $this->map[$sourceId . '|' . $externalId]['seen'] = true;
+        $this->map[$sourceId . '|' . $externalId]['seen_at'] = $this->tick;
     }
 
     public function startRun(int $sourceId, string $trigger, bool $dryRun, int $total = 1): int
@@ -230,7 +233,7 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
         $this->runs[] = array(
             'pk_i_id' => count($this->runs) + 1, 'fk_i_source_id' => $sourceId, 's_trigger' => $trigger, 'b_dry_run' => $dryRun,
             'i_total' => $total, 'i_created' => 0, 'i_updated' => 0, 'i_unchanged' => 0, 'i_retired' => 0, 'i_failed' => 0,
-            'dt_started' => '2026-09-24 10:00:00', 'dt_finished' => null,
+            'dt_started' => (string)$this->tick, 'dt_finished' => null,
         );
 
         return count($this->runs);
@@ -256,13 +259,51 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
         $this->runs[$runId - 1]['dt_finished'] = '2026-09-24 10:00:01';
     }
 
-    public function closeIfDone(int $runId): void
+    public function closeIfDone(int $runId): bool
     {
         $r    = $this->runs[$runId - 1];
         $done = $r['i_created'] + $r['i_updated'] + $r['i_unchanged'] + $r['i_retired'] + $r['i_failed'];
         if ($r['dt_finished'] === null && $done >= $r['i_total']) {
             $this->closeRun($runId);
+
+            return true;
         }
+
+        return false;
+    }
+
+    /** The clock the map uses: a test moves it to tell one fetch from the next. */
+    public int $tick = 0;
+
+    public function unseen(int $sourceId, string $since): array
+    {
+        $out = array();
+        foreach ($this->map as $key => $row) {
+            [$source, $externalId] = explode('|', $key, 2);
+            if ((int)$source === $sourceId && ($row['e_status'] ?? 'active') === 'active' && ($row['seen_at'] ?? 0) < (int)$since) {
+                $out[] = array('external_id' => $externalId, 'item_id' => $row['fk_i_item_id']);
+            }
+        }
+
+        return $out;
+    }
+
+    public function retire(int $sourceId, string $externalId): void
+    {
+        $this->map[$sourceId . '|' . $externalId]['e_status'] = 'retired';
+    }
+
+    public array $due = array();
+    public array $scheduled = array();
+
+    public function dueSources(string $now): array
+    {
+        return $this->due;
+    }
+
+    public function scheduleNext(int $sourceId, string $next, string $status): void
+    {
+        $this->scheduled[$sourceId] = $status;
     }
 
     public function run(int $runId): ?array
@@ -352,6 +393,18 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
         $this->held[] = $itemId;
     }
 
+    public array $inactive = array();
+
+    public function deactivate(int $itemId): void
+    {
+        $this->inactive[$itemId] = true;
+    }
+
+    public function activate(int $itemId): void
+    {
+        unset($this->inactive[$itemId]);
+    }
+
     public function siteModerates(): bool
     {
         return $this->moderates;
@@ -364,8 +417,13 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
 }
 
 /** Images keyed by address: a string is the body, an int is an HTTP status. */
-final class FakeImages implements \mindstellar\listingimport\Images\ImageSource
+final class FakeImages implements \mindstellar\listingimport\Images\ImageSource, \mindstellar\listingimport\Images\Downloader
 {
+    public function download(string $url): array
+    {
+        return $this->fetch($url);
+    }
+
     public array $bodies = array();
     public array $asked  = array();
 

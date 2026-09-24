@@ -47,8 +47,24 @@ final class Source
         $this->id       = $id;
         $this->name     = $name;
         $this->defaults = $defaults;
-        $this->policy   = $policy + array('status' => self::STATUS_SITE, 'respect_caps' => true);
+        $this->policy   = $policy + array('status' => self::STATUS_SITE, 'respect_caps' => true, 'missing' => self::MISSING_DEACTIVATE);
     }
+
+    /** Keep a listing that left its feed. */
+    public const MISSING_KEEP = 'keep';
+
+    /** Deactivate a listing that left its feed. Never deleted. */
+    public const MISSING_DEACTIVATE = 'deactivate';
+
+    public string $kind = 'push';
+
+    public string $url = '';
+
+    public string $format = 'json';
+
+    public string $mapping = '';
+
+    public int $interval = 360;
 
     /**
      * @param array<string,mixed> $row a t_listing_import_source row
@@ -57,11 +73,30 @@ final class Source
      */
     public static function fromRow(array $row): self
     {
-        return new self(
+        $source = new self(
             (int)$row['pk_i_id'],
             (string)$row['s_name'],
-            json_decode((string)($row['s_defaults'] ?? ''), true) ?: array(),
-            json_decode((string)($row['s_policy'] ?? ''), true) ?: array()
+            array_filter(array(
+                'category'      => (int)$row['fk_i_category_id'],
+                'country'       => (string)$row['fk_c_country_code'],
+                'currency'      => (string)$row['fk_c_currency_code'],
+                'locale'        => (string)$row['fk_c_locale_code'],
+                'owner_user_id' => (int)$row['fk_i_owner_id'],
+                'contact_name'  => (string)$row['s_contact_name'],
+                'contact_email' => (string)$row['s_contact_email'],
+            ), static fn ($value) => $value !== null && $value !== '' && $value !== 0),
+            array(
+                'status'       => (string)$row['e_status'],
+                'respect_caps' => (int)$row['b_respect_caps'] === 1,
+                'missing'      => (string)$row['e_missing'],
+            )
         );
+        $source->kind     = (string)$row['e_kind'];
+        $source->url      = (string)$row['s_url'];
+        $source->format   = (string)$row['s_format'];
+        $source->mapping  = (string)($row['s_mapping'] ?? '');
+        $source->interval = max(60, (int)$row['i_interval_minutes']);
+
+        return $source;
     }
 }

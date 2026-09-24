@@ -12,14 +12,14 @@
 namespace mindstellar\listingimport\Images;
 
 /**
- * Downloads one image a partner named, safely.
+ * Downloads what a partner named -- an image or a feed -- safely.
  *
  * Every address on the way, redirects included, passes the AddressGuard, and the download
  * connects to the address the guard approved. The body stops at a size cap, and what arrives
  * must be a JPEG, PNG, GIF or WebP image. The file lands in the site's temp folder under an
  * `import_` name the hourly sweep removes if nothing else does.
  */
-final class Fetcher implements ImageSource
+final class Fetcher implements ImageSource, Downloader
 {
     public const PREFIX = 'import_';
 
@@ -50,11 +50,37 @@ final class Fetcher implements ImageSource
     }
 
     /**
+     * Download an image and check it is one.
+     *
      * @param string $url
      *
      * @return array{ok: bool, path?: string, hash?: string, error?: string}
      */
     public function fetch(string $url): array
+    {
+        $got = $this->download($url);
+        if (!$got['ok']) {
+            return $got;
+        }
+        $info = @getimagesize($got['path']);
+        if ($info === false || !in_array($info[2], self::TYPES, true)) {
+            @unlink($got['path']);
+
+            return array('ok' => false, 'error' => 'Not a JPEG, PNG, GIF or WebP image.');
+        }
+
+        return $got;
+    }
+
+    /**
+     * Download any file through the guard, following checked redirects. The caller decides
+     * what the file must be, and deletes it.
+     *
+     * @param string $url
+     *
+     * @return array{ok: bool, path?: string, hash?: string, error?: string}
+     */
+    public function download(string $url): array
     {
         $file = $this->dir . self::PREFIX . bin2hex(random_bytes(12));
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
@@ -77,13 +103,6 @@ final class Fetcher implements ImageSource
                 @unlink($file);
 
                 return array('ok' => false, 'error' => 'The server answered ' . $got['status'] . '.');
-            }
-
-            $info = @getimagesize($file);
-            if ($info === false || !in_array($info[2], self::TYPES, true)) {
-                @unlink($file);
-
-                return array('ok' => false, 'error' => 'Not a JPEG, PNG, GIF or WebP image.');
             }
 
             return array('ok' => true, 'path' => $file, 'hash' => (string)hash_file('sha256', $file));

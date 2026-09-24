@@ -31,7 +31,7 @@ function errors(array $record): array
 harness_section('the smallest valid record');
 
 pin('has no errors and no warnings', array('errors' => array(), 'warnings' => array()), Validator::check($base));
-pin('an empty record lists all four required fields', array('external_id', 'title', 'description', 'category'), errors(array()));
+pin('an empty record lists the three required fields', array('external_id', 'title', 'description'), errors(array()));
 pin('an empty string counts as missing', array('title'), errors(array('title' => '') + $base));
 
 harness_section('a full record');

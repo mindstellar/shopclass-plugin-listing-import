@@ -136,6 +136,18 @@ osc_admin_field(array(
     'attrs'       => array('maxlength' => 100),
     'placeholder' => __('e.g. Partner site', 'listing-import'),
 ));
+$pushSources = array_column(osc_db_select(
+    'SELECT pk_i_id, s_name FROM ' . DB_TABLE_PREFIX . "t_listing_import_source WHERE e_kind = 'push' ORDER BY pk_i_id"
+), 's_name', 'pk_i_id');
+if (count($pushSources) > 1) {
+    osc_admin_field(array(
+        'type'    => 'select',
+        'name'    => 'source',
+        'label'   => __('Imports into', 'listing-import'),
+        'options' => array_map('strval', $pushSources),
+        'help'    => __('The source whose defaults and rules its listings follow.', 'listing-import'),
+    ));
+}
 osc_admin_form_row_open(__('Permissions', 'listing-import'));
 foreach ($scopeNames as $scope => $label) {
     osc_admin_checkbox(array(

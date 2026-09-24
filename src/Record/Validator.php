@@ -68,7 +68,8 @@ final class Validator
      */
     private function record(array $r): void
     {
-        foreach (array('external_id', 'title', 'description', 'category') as $required) {
+        // A category may come from the source's defaults, so the resolver decides whether one is missing.
+        foreach (array('external_id', 'title', 'description') as $required) {
             if (!array_key_exists($required, $r) || $r[$required] === null || $r[$required] === '') {
                 $this->errors[$required] = 'Required.';
             }

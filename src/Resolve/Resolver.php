@@ -68,8 +68,10 @@ final class Resolver
         // Category.
         $category = $this->category($record['category'] ?? null);
         if ($category === null && !empty($defaults['category'])) {
-            $category                       = $this->lookups->categoryById((int)$defaults['category']);
-            $warnings['category'] ??= 'No such category here; used the source default.';
+            if (isset($record['category'])) {
+                $warnings['category'] = 'No such category here; used the source default.';
+            }
+            $category = $this->lookups->categoryById((int)$defaults['category']);
         }
         if ($category === null) {
             $errors['category'] = 'No such category here, and the source has no default.';

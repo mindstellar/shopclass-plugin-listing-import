@@ -29,24 +29,35 @@ return new class () implements MigrationInterface {
         $p    = DB_TABLE_PREFIX;
         $tail = " ENGINE=InnoDB DEFAULT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci'";
 
+        // One column per setting, so the admin's declared form writes the row directly.
         $conn->execute(
             'CREATE TABLE IF NOT EXISTS ' . $p . 't_listing_import_source ('
             . ' pk_i_id INT UNSIGNED NOT NULL AUTO_INCREMENT,'
             . ' s_name VARCHAR(100) NOT NULL,'
             . " e_kind ENUM('push','pull') NOT NULL DEFAULT 'push',"
-            . " s_format VARCHAR(20) NOT NULL DEFAULT 'json',"
-            . " s_preset VARCHAR(40) NOT NULL DEFAULT '',"
-            . " s_url VARCHAR(2048) NOT NULL DEFAULT '',"
-            . ' i_interval_minutes INT UNSIGNED NOT NULL DEFAULT 60,'
-            . ' dt_next_run DATETIME NULL DEFAULT NULL,'
-            . ' s_mapping TEXT NULL,'
-            . ' s_defaults TEXT NULL,'
-            . ' s_policy TEXT NULL,'
-            . " s_webhook_url VARCHAR(2048) NOT NULL DEFAULT '',"
             . ' b_enabled TINYINT(1) NOT NULL DEFAULT 1,'
+            // Pulled feeds: where, in what format, how to map it, how often.
+            . " s_url VARCHAR(2048) NOT NULL DEFAULT '',"
+            . " s_format VARCHAR(20) NOT NULL DEFAULT 'json',"
+            . ' s_mapping TEXT NULL,'
+            . ' i_interval_minutes INT UNSIGNED NOT NULL DEFAULT 360,'
+            . ' dt_next_run DATETIME NULL DEFAULT NULL,'
+            // What fills a record's gaps.
+            // 0 is none: a declared form cannot write NULL.
+            . ' fk_i_category_id INT UNSIGNED NOT NULL DEFAULT 0,'
+            . " fk_c_country_code CHAR(2) NOT NULL DEFAULT '',"
+            . " fk_c_currency_code CHAR(3) NOT NULL DEFAULT '',"
+            . " fk_c_locale_code CHAR(5) NOT NULL DEFAULT '',"
+            . ' fk_i_owner_id INT UNSIGNED NOT NULL DEFAULT 0,'
+            . " s_contact_name VARCHAR(100) NOT NULL DEFAULT '',"
+            . " s_contact_email VARCHAR(100) NOT NULL DEFAULT '',"
+            // The rules for a new listing, and for one that leaves the feed.
+            . " e_status ENUM('site','active','pending') NOT NULL DEFAULT 'site',"
+            . ' b_respect_caps TINYINT(1) NOT NULL DEFAULT 1,'
+            . " e_missing ENUM('keep','deactivate') NOT NULL DEFAULT 'deactivate',"
             . ' dt_created DATETIME NOT NULL,'
             . ' dt_last_run DATETIME NULL DEFAULT NULL,'
-            . " s_last_status VARCHAR(20) NOT NULL DEFAULT '',"
+            . " s_last_status VARCHAR(255) NOT NULL DEFAULT '',"
             . ' PRIMARY KEY (pk_i_id),'
             . ' INDEX idx_due (b_enabled, e_kind, dt_next_run)'
             . ')' . $tail
@@ -55,9 +66,7 @@ return new class () implements MigrationInterface {
         // Keys that name no source import into the first push source, so there is always one.
         if ((int)$conn->scalar('SELECT COUNT(*) FROM ' . $p . 't_listing_import_source') === 0) {
             $conn->execute(
-                'INSERT INTO ' . $p . "t_listing_import_source (s_name, e_kind, s_defaults, s_policy, dt_created)"
-                . " VALUES ('API', 'push', '{}', ?, NOW())",
-                array(json_encode(array('status' => 'site', 'respect_caps' => true)))
+                'INSERT INTO ' . $p . "t_listing_import_source (s_name, e_kind, dt_created) VALUES ('API', 'push', NOW())"
             );
         }
 

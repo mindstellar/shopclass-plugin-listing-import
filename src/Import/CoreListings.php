@@ -76,6 +76,16 @@ final class CoreListings implements Listings
         return is_string($result) ? $result : ($result === false ? 'The listing could not be saved.' : true);
     }
 
+    public function deactivate(int $itemId): void
+    {
+        (new ItemActions(true))->deactivate($itemId);
+    }
+
+    public function activate(int $itemId): void
+    {
+        (new ItemActions(true))->activate($itemId);
+    }
+
     public function hold(int $itemId): void
     {
         (new ItemActions(true))->disable($itemId);

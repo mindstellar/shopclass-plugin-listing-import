@@ -71,7 +71,12 @@ final class Keys
                     osc_add_flash_error_message(__('A key needs a name and at least one permission.', 'listing-import'), 'admin');
                     break;
                 }
-                self::showOnce($store->create($name, $scopes));
+                $source = Params::getParamInt('source');
+                $isPush = osc_db_scalar(
+                    'SELECT 1 FROM ' . DB_TABLE_PREFIX . "t_listing_import_source WHERE pk_i_id = ? AND e_kind = 'push'",
+                    array($source)
+                ) !== null;
+                self::showOnce($store->create($name, $scopes, $isPush ? $source : null));
                 break;
             case 'rotate':
                 $made = $store->rotate(Params::getParamInt('id'));

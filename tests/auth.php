@@ -140,6 +140,6 @@ pin('broken JSON is 400', array(400, 'invalid_json'), (static function () use ($
 pin('JSON that is not an object is 400', 400, $api->dispatch(post($made['token'], '"text"'))->status);
 pin('JSON nested deeper than 32 is 400', 400, $api->dispatch(post($made['token'], str_repeat('[', 40) . str_repeat(']', 40)))->status);
 $r = $api->dispatch(post($made['token'], '{"title":"No id"}'));
-pin('a record with errors is 422, each named by its field', array(422, array('external_id', 'description', 'category')), array($r->status, array_keys($r->body['error']['fields'] ?? array())));
+pin('a record with errors is 422, each named by its field', array(422, array('external_id', 'description')), array($r->status, array_keys($r->body['error']['fields'] ?? array())));
 
 exit(harness_result());

@@ -24,6 +24,7 @@ Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issu
  */
 
 use mindstellar\listingimport\Admin\Keys;
+use mindstellar\listingimport\Admin\Sources;
 use mindstellar\listingimport\Api;
 use mindstellar\listingimport\Cli;
 use mindstellar\listingimport\Import\DbStore;
@@ -67,9 +68,21 @@ osc_add_filter('cli_commands', array(Cli::class, 'commands'));
 
 // Downloaded images that nothing took are removed after two hours.
 osc_add_hook('cron_hourly', array(Plugin::class, 'sweep'));
+osc_add_hook('cron_hourly', array(Plugin::class, 'schedule'));
 
 // A listing an admin deletes is forgotten, so its record makes a new one only when it changes.
 osc_add_hook('before_delete_item', array(DbStore::class, 'forget'));
+
+// The import sources screens: the list, the declared editor, and a feed preview.
+foreach (array(
+    Sources::ROUTE         => 'admin/sources.php',
+    Sources::EDIT_ROUTE    => 'admin/source.php',
+    Sources::PREVIEW_ROUTE => 'admin/preview.php',
+) as $liRoute => $liFile) {
+    osc_add_route($liRoute, str_replace('-', '/', $liRoute), str_replace('-', '/', $liRoute), osc_plugin_folder(__FILE__) . $liFile);
+}
+osc_add_hook('admin_menu_init', array(Sources::class, 'menu'));
+osc_add_hook('init_admin', array(Sources::class, 'handlePost'));
 
 // The API keys screen.
 osc_add_route(Keys::ROUTE, 'listing-import/keys', 'listing-import/keys', osc_plugin_folder(__FILE__) . 'admin/keys.php');

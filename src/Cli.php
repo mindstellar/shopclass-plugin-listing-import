@@ -89,22 +89,27 @@ final class Cli
 
             return 0;
         }
-        printf("%-6s %-10s %-8s %-20s %8s %8s %8s %8s %6s\n", 'RUN', 'SOURCE', 'HOW', 'STARTED', 'CREATED', 'UPDATED', 'SAME', 'FAILED', 'DONE');
+        printf("%-6s %-12s %-6s %-20s %8s %8s %6s %8s %7s %5s\n", 'RUN', 'SOURCE', 'HOW', 'STARTED', 'CREATED', 'UPDATED', 'SAME', 'REMOVED', 'FAILED', 'DONE');
+        $dry = false;
         foreach ($runs as $run) {
+            $dry = $dry || (int)$run['b_dry_run'] === 1;
             printf(
-                "%-6d %-10s %-8s %-20s %8d %8d %8d %8d %6s\n",
+                "%-6d %-12s %-6s %-20s %8d %8d %6d %8d %7d %5s\n",
                 $run['pk_i_id'],
-                mb_substr((string)($run['s_name'] ?? '?'), 0, 10),
+                mb_substr((string)($run['s_name'] ?? '?'), 0, 12),
                 $run['s_trigger'] . ((int)$run['b_dry_run'] === 1 ? '*' : ''),
                 $run['dt_started'],
                 $run['i_created'],
                 $run['i_updated'],
                 $run['i_unchanged'],
+                $run['i_retired'],
                 $run['i_failed'],
                 $run['dt_finished'] === null ? 'no' : 'yes'
             );
         }
-        echo "* a dry run: nothing was changed.\n";
+        if ($dry) {
+            echo "* a dry run: nothing was changed.\n";
+        }
 
         return 0;
     }
@@ -145,12 +150,13 @@ final class Cli
     {
         $run = (array)$store->run($runId);
         printf(
-            "Run %d%s: %d created, %d updated, %d unchanged, %d failed.\n",
+            "Run %d%s: %d created, %d updated, %d unchanged, %d removed, %d failed.\n",
             $runId,
             $dryRun ? ' (dry run, nothing changed)' : '',
             $run['i_created'] ?? 0,
             $run['i_updated'] ?? 0,
             $run['i_unchanged'] ?? 0,
+            $run['i_retired'] ?? 0,
             $run['i_failed'] ?? 0
         );
         foreach ($store->runErrors($runId, 20) as $failure) {

@@ -58,7 +58,7 @@ pin('the run says it is running', 'running', $show()->body['data']['status']);
 
 harness_section('the jobs run');
 
-$batch = new Batch(fake_importer(), $GLOBALS['__store'], static function () {
+$batch = new Batch(fake_importer(), $GLOBALS['__store'], $GLOBALS['__listings'], static function () {
 });
 $batch->work(array_shift($GLOBALS['__jobs'])[1]);
 pin('after one job, one is counted and the run is still open', array(1, 'running'), array($show()->body['data']['counts']['created'], $show()->body['data']['status']));
@@ -100,7 +100,7 @@ harness_section('the command line runs a batch at once');
 
 $GLOBALS['__store']    = new MemoryStore();
 $GLOBALS['__listings'] = new MemoryListings();
-$batch                 = new Batch(fake_importer(), $GLOBALS['__store']);
+$batch                 = new Batch(fake_importer(), $GLOBALS['__store'], $GLOBALS['__listings']);
 $runId                 = $batch->runNow(new Source(1, 'API'), array(rec('C1'), rec('C2')), 'cli');
 $run                   = $GLOBALS['__store']->run($runId);
 pin('every record, then the run is closed', array(2, 'cli', true), array($run['i_created'], $run['s_trigger'], $run['dt_finished'] !== null));
