@@ -12,8 +12,8 @@
 namespace mindstellar\listingimport\Record;
 
 /**
- * Records from a file: a JSON list, a JSON object with a "records" list, or NDJSON (one
- * JSON record per line).
+ * Records from a file: a JSON list, a JSON object holding one list of records (such as
+ * {"records": [...]} or {"products": [...]}), or NDJSON (one JSON record per line).
  */
 final class FileReader
 {
@@ -34,8 +34,11 @@ final class FileReader
 
         $data = json_decode($text, true, 64);
         if (is_array($data)) {
-            $records = isset($data['records']) && is_array($data['records']) ? $data['records'] : $data;
-            if (array_keys($records) === range(0, count($records) - 1) && $records !== array()) {
+            $records = isset($data['records']) && is_array($data['records']) ? $data['records'] : self::wrapped($data);
+            if ($records === null) {
+                return array('records' => array(), 'error' => 'The file holds several lists; it must hold one list of records.');
+            }
+            if ($records !== array() && Validator::isList($records)) {
                 return array('records' => array_values(array_filter($records, 'is_array')), 'error' => null);
             }
             if ($records !== array() && isset($records['external_id'])) {
@@ -59,5 +62,25 @@ final class FileReader
         return $records === array()
             ? array('records' => array(), 'error' => 'The file holds no records.')
             : array('records' => $records, 'error' => null);
+    }
+
+    /**
+     * The one list of records an object wraps, the object itself when it holds none, or null
+     * when it holds several.
+     *
+     * @param array<mixed> $data
+     *
+     * @return array<mixed>|null
+     */
+    private static function wrapped(array $data): ?array
+    {
+        $lists = array_filter($data, static fn ($value) => is_array($value) && $value !== array()
+            && Validator::isList($value) && is_array($value[0]));
+
+        if (Validator::isList($data) || $lists === array()) {
+            return $data;
+        }
+
+        return count($lists) === 1 ? reset($lists) : null;
     }
 }

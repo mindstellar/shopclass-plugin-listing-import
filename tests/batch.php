@@ -115,6 +115,8 @@ $files = array(
     'list.json'   => json_encode(array(rec('F1'), rec('F2'))),
     'object.json' => json_encode(array('records' => array(rec('F1')))),
     'one.json'    => json_encode(rec('F1')),
+    'wrapped.json' => json_encode(array('products' => array(rec('F1'), rec('F2')), 'total' => 2)),
+    'two.json'    => json_encode(array('a' => array(rec('F1')), 'b' => array(rec('F2')))),
     'lines.ndjson' => "\xEF\xBB\xBF" . json_encode(rec('F1')) . "\n\n" . json_encode(rec('F2')) . "\r\n",
     'bad.ndjson'  => json_encode(rec('F1')) . "\n{not json\n",
     'empty.json'  => '',
@@ -124,6 +126,8 @@ foreach ($files as $name => $text) {
 }
 pin('a JSON list', array('F1', 'F2'), array_column(FileReader::read($dir . 'list.json')['records'], 'external_id'));
 pin('an object with records', array('F1'), array_column(FileReader::read($dir . 'object.json')['records'], 'external_id'));
+pin('an object wrapping one list, such as products', array('F1', 'F2'), array_column(FileReader::read($dir . 'wrapped.json')['records'], 'external_id'));
+pin('an object wrapping two lists is not guessed', 'The file holds several lists; it must hold one list of records.', FileReader::read($dir . 'two.json')['error']);
 pin('a single record', array('F1'), array_column(FileReader::read($dir . 'one.json')['records'], 'external_id'));
 pin('NDJSON, with a byte-order mark and blank lines', array('F1', 'F2'), array_column(FileReader::read($dir . 'lines.ndjson')['records'], 'external_id'));
 pin('a bad line is named', 'Line 2 is not a JSON record.', FileReader::read($dir . 'bad.ndjson')['error']);

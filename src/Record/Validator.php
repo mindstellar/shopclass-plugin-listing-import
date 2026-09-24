@@ -262,7 +262,7 @@ final class Validator
      *
      * @return bool
      */
-    private static function isList(array $a): bool
+    public static function isList(array $a): bool
     {
         return $a === array() || array_keys($a) === range(0, count($a) - 1);
     }
