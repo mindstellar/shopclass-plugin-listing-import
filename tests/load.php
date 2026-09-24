@@ -40,6 +40,14 @@ function osc_add_route_hook($id, $regexp, $url)
 {
     $GLOBALS['__routes'][$id] = array($regexp, $url);
 }
+function osc_add_route($id, $regexp, $url, $file)
+{
+    $GLOBALS['__routes'][$id] = array($regexp, $url, $file);
+}
+function osc_plugin_folder($file)
+{
+    return 'listing-import/';
+}
 function __($text, $domain = '')
 {
     return $text;
@@ -59,7 +67,12 @@ check('the configure link has a handler', isset($GLOBALS['__hooks']['listing-imp
 pin('an update migrates on init', array(array(Plugin::class, 'upgrade')), $GLOBALS['__hooks']['init'] ?? null);
 pin('the settings page is declared under the plugin id', array('listing-import'), array_keys($GLOBALS['__settings']));
 pin('its fields', array('rate_limit', 'retention_days'), array_column($GLOBALS['__settings']['listing-import']['groups'][0]['fields'], 'name'));
-pin('one API route, under /api/v1/', array(Plugin::ROUTE => array('api/v1/(.+)', 'api/v1/{path}')), $GLOBALS['__routes']);
+pin('one API route, under /api/v1/', array('api/v1/(.+)', 'api/v1/{path}'), $GLOBALS['__routes'][Plugin::ROUTE] ?? null);
+pin('the keys screen is an admin route file', array('listing-import/keys', 'listing-import/keys', 'listing-import/admin/keys.php'), $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Keys::ROUTE] ?? null);
+pin('with a menu entry and a post handler', array(
+    array(array(\mindstellar\listingimport\Admin\Keys::class, 'menu')),
+    array(array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost')),
+), array($GLOBALS['__hooks']['admin_menu_init'] ?? null, $GLOBALS['__hooks']['init_admin'] ?? null));
 pin('the route hook answers with Api::handle', array(array(Api::class, 'handle')), $GLOBALS['__hooks'][Plugin::ROUTE] ?? null);
 
 harness_section('migrations');
@@ -75,13 +88,15 @@ pin('Schema::VERSION counts them', count($files), Schema::VERSION);
 
 harness_section('the ping endpoint');
 
-$r = Api::dispatch('GET', 'ping');
-pin('answers 200', 200, $r->status);
+require __DIR__ . '/lib/fakes.php';
+$api = fake_api();
+$r   = $api->dispatch(new \mindstellar\listingimport\Http\Request('GET', 'ping'));
+pin('answers 200 with no key', 200, $r->status);
 pin('with the plugin and its version', array('data' => array('plugin' => 'listing-import', 'version' => Plugin::VERSION)), $r->body);
-$r = Api::dispatch('POST', 'ping');
+$r = $api->dispatch(new \mindstellar\listingimport\Http\Request('POST', 'ping'));
 pin('another method is 405', 405, $r->status);
 pin('and says which is allowed', 'GET', $r->headers['Allow'] ?? null);
-$r = Api::dispatch('GET', 'nothing/here');
+$r = $api->dispatch(new \mindstellar\listingimport\Http\Request('GET', 'nothing/here'));
 pin('an unknown path is 404', 404, $r->status);
 pin('with the error shape every error has', 'not_found', $r->body['error']['code'] ?? null);
 

@@ -64,6 +64,9 @@ return new class () implements MigrationInterface {
             . ' dt_expires DATETIME NULL DEFAULT NULL,'
             . ' dt_last_used DATETIME NULL DEFAULT NULL,'
             . " s_last_ip VARCHAR(45) NOT NULL DEFAULT '',"
+            // The per-minute request count: the minute it counts, and how many so far.
+            . ' dt_window DATETIME NULL DEFAULT NULL,'
+            . ' i_window_count INT UNSIGNED NOT NULL DEFAULT 0,'
             . ' dt_created DATETIME NOT NULL,'
             . ' PRIMARY KEY (pk_i_id),'
             . ' UNIQUE KEY uk_key_id (s_key_id),'

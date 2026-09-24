@@ -11,15 +11,44 @@
 
 namespace mindstellar\listingimport;
 
+use mindstellar\listingimport\Auth\DbKeyRepository;
+use mindstellar\listingimport\Auth\FailureCounter;
+use mindstellar\listingimport\Auth\KeyStore;
+use mindstellar\listingimport\Http\Request;
 use mindstellar\listingimport\Http\Response;
-use Params;
+use mindstellar\listingimport\Record\Validator;
+use mindstellar\security\SigningKey;
 
 /**
  * The REST API under /api/v1/. Every request arrives on one route hook and is sent to a
- * handler by method and path.
+ * handler by method and path. Everything but ping needs a key with the right scope.
  */
 final class Api
 {
+    /** method path => [handler, scope]. A null scope is open to anyone. */
+    private const ROUTES = array(
+        'GET ping'      => array('ping', null),
+        'POST listings' => array('createListing', KeyStore::SCOPE_WRITE),
+    );
+
+    private KeyStore $keys;
+
+    private FailureCounter $failures;
+
+    private int $perMinute;
+
+    /**
+     * @param KeyStore       $keys
+     * @param FailureCounter $failures
+     * @param int            $perMinute requests a key may send each minute
+     */
+    public function __construct(KeyStore $keys, FailureCounter $failures, int $perMinute)
+    {
+        $this->keys      = $keys;
+        $this->failures  = $failures;
+        $this->perMinute = max(1, $perMinute);
+    }
+
     /**
      * Answer the current request and stop.
      *
@@ -27,44 +56,122 @@ final class Api
      */
     public static function handle(): void
     {
-        $method = strtoupper((string)Params::getServerParam('REQUEST_METHOD'));
-        $path   = Params::getParamString('path');
-
-        self::dispatch($method, $path)->send();
+        $api = new self(
+            new KeyStore(new DbKeyRepository(), SigningKey::get()),
+            new FailureCounter(),
+            (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60)
+        );
+        $api->dispatch(Request::fromGlobals())->send();
     }
 
     /**
-     * The answer for one method and path.
+     * The answer for one request.
      *
-     * @param string $method
-     * @param string $path the part after /api/v1/
+     * @param Request $request
      *
      * @return Response
      */
-    public static function dispatch(string $method, string $path): Response
+    public function dispatch(Request $request): Response
     {
-        $path = trim($path, '/');
+        $route = self::ROUTES[$request->method . ' ' . $request->path] ?? null;
+        if ($route === null) {
+            $allowed = $this->methodsFor($request->path);
 
-        if ($path === 'ping') {
-            if ($method !== 'GET') {
-                return self::notAllowed('GET');
-            }
-
-            return Response::ok(array('plugin' => 'listing-import', 'version' => Plugin::VERSION));
+            return $allowed === array()
+                ? Response::error(404, 'not_found', 'No such endpoint.')
+                : self::notAllowed($allowed);
         }
 
-        return Response::error(404, 'not_found', 'No such endpoint.');
+        [$handler, $scope] = $route;
+        if ($scope !== null) {
+            if ($this->failures->exceeded()) {
+                return Response::error(429, 'rate_limited', 'Too many failed attempts from this address. Try again later.');
+            }
+            $key = $this->keys->authenticate($request->authorization, $scope, $request->ip);
+            if ($key instanceof Response) {
+                if ($key->status === 401) {
+                    $this->failures->record();
+                }
+
+                return $key;
+            }
+            $limited = $this->keys->throttle((int)$key['pk_i_id'], $this->perMinute);
+            if ($limited !== null) {
+                return $limited;
+            }
+        }
+
+        return $this->$handler($request);
     }
 
     /**
-     * @param string $allowed
+     * @return Response
+     */
+    private function ping(): Response
+    {
+        return Response::ok(array('plugin' => 'listing-import', 'version' => Plugin::VERSION));
+    }
+
+    /**
+     * Check a record. Importing it arrives with the importer.
+     *
+     * @param Request $request
      *
      * @return Response
      */
-    private static function notAllowed(string $allowed): Response
+    private function createListing(Request $request): Response
     {
-        $response            = Response::error(405, 'method_not_allowed', 'Use ' . $allowed . ' for this endpoint.');
-        $response->headers['Allow'] = $allowed;
+        $record = $request->json();
+        if ($record instanceof Response) {
+            return $record;
+        }
+        $check = Validator::check($record);
+        if ($check['errors'] !== array()) {
+            $response                   = Response::error(422, 'invalid_record', 'The record has errors; see fields.');
+            $response->body['error']['fields'] = $check['errors'];
+            if ($check['warnings'] !== array()) {
+                $response->body['warnings'] = $check['warnings'];
+            }
+
+            return $response;
+        }
+
+        $response = Response::error(501, 'not_implemented', 'The record is valid, but importing is not available yet.');
+        if ($check['warnings'] !== array()) {
+            $response->body['warnings'] = $check['warnings'];
+        }
+
+        return $response;
+    }
+
+    /**
+     * @param string $path
+     *
+     * @return array<int,string> the methods this path answers
+     */
+    private function methodsFor(string $path): array
+    {
+        $methods = array();
+        foreach (array_keys(self::ROUTES) as $route) {
+            [$method, $routePath] = explode(' ', $route, 2);
+            if ($routePath === $path) {
+                $methods[] = $method;
+            }
+        }
+
+        return $methods;
+    }
+
+    /**
+     * @param array<int,string> $allowed
+     *
+     * @return Response
+     */
+    private static function notAllowed(array $allowed): Response
+    {
+        $list                       = implode(', ', $allowed);
+        $response                   = Response::error(405, 'method_not_allowed', 'Use ' . $list . ' for this endpoint.');
+        $response->headers['Allow'] = $list;
 
         return $response;
     }
