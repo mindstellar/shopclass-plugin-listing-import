@@ -11,6 +11,7 @@
 
 namespace mindstellar\listingimport\Import;
 
+use mindstellar\listingimport\Images\ImageSource;
 use mindstellar\listingimport\Record\Validator;
 use mindstellar\listingimport\Resolve\Resolver;
 
@@ -35,16 +36,34 @@ final class Importer
 
     private Store $store;
 
+    private ?ImageSource $images;
+
+    private int $maxImages;
+
+    private int $imageSeconds;
+
     /**
-     * @param Resolver $resolver
-     * @param Listings $listings
-     * @param Store    $store
+     * @param Resolver     $resolver
+     * @param Listings     $listings
+     * @param Store        $store
+     * @param ImageSource|null $images   null imports no images
+     * @param int          $maxImages    images fetched per record
+     * @param int          $imageSeconds time allowed for one record's images
      */
-    public function __construct(Resolver $resolver, Listings $listings, Store $store)
-    {
-        $this->resolver = $resolver;
-        $this->listings = $listings;
-        $this->store    = $store;
+    public function __construct(
+        Resolver $resolver,
+        Listings $listings,
+        Store $store,
+        ?ImageSource $images = null,
+        int $maxImages = 10,
+        int $imageSeconds = 30
+    ) {
+        $this->resolver     = $resolver;
+        $this->listings     = $listings;
+        $this->store        = $store;
+        $this->images       = $images;
+        $this->maxImages    = $maxImages;
+        $this->imageSeconds = $imageSeconds;
     }
 
     /**
@@ -89,21 +108,36 @@ final class Importer
             return $this->done($itemId === null ? self::CREATED : self::UPDATED, $itemId, $externalId, $warnings);
         }
 
-        if ($itemId !== null) {
-            $result = $this->listings->update($itemId, $resolved['fields'], $resolved['meta']);
-            if ($result !== true) {
-                return $this->fail($source, $runId, $externalId, array('listing' => (string)$result), $warnings);
-            }
-            $this->store->map($source->id, $externalId, $itemId, $hash);
-            $this->store->log($runId, $source->id, $externalId, 'info', 'Updated listing ' . $itemId . '.');
-
-            return $this->done(self::UPDATED, $itemId, $externalId, $warnings);
-        }
-
-        if (!empty($source->policy['respect_caps']) && !$this->listings->canPublish((string)$resolved['fields']['contactEmail'])) {
+        if ($itemId === null && !empty($source->policy['respect_caps'])
+            && !$this->listings->canPublish((string)$resolved['fields']['contactEmail'])
+        ) {
             return $this->fail($source, $runId, $externalId, array('owner' => 'The owner has reached their listing limit.'), $warnings);
         }
-        $result = $this->listings->create($resolved['fields'], $resolved['meta']);
+
+        // Images the listing already has, by content, are not fetched into it again.
+        $known  = $itemId !== null ? (json_decode((string)($mapped['s_image_hashes'] ?? ''), true) ?: array()) : array();
+        $photos = $this->fetchImages((array)($record['images'] ?? array()), $known, $warnings);
+        try {
+            if ($itemId !== null) {
+                $result = $this->listings->update($itemId, $resolved['fields'], $resolved['meta'], array_column($photos, 'path'));
+                if ($result !== true) {
+                    return $this->fail($source, $runId, $externalId, array('listing' => (string)$result), $warnings);
+                }
+                $this->store->map($source->id, $externalId, $itemId, $hash, array_merge($known, array_column($photos, 'hash')));
+                $this->store->log($runId, $source->id, $externalId, 'info', 'Updated listing ' . $itemId . '.');
+
+                return $this->done(self::UPDATED, $itemId, $externalId, $warnings);
+            }
+
+            $result = $this->listings->create($resolved['fields'], $resolved['meta'], array_column($photos, 'path'));
+        } finally {
+            // Core deletes the files it took; anything left is from a refused save.
+            foreach ($photos as $photo) {
+                if (is_file($photo['path'])) {
+                    @unlink($photo['path']);
+                }
+            }
+        }
         if (!is_int($result)) {
             return $this->fail($source, $runId, $externalId, array('listing' => trim((string)$result)), $warnings);
         }
@@ -111,10 +145,57 @@ final class Importer
         if ($status === Source::STATUS_PENDING || ($status === Source::STATUS_SITE && $this->listings->siteModerates())) {
             $this->listings->hold($result);
         }
-        $this->store->map($source->id, $externalId, $result, $hash);
+        $this->store->map($source->id, $externalId, $result, $hash, array_column($photos, 'hash'));
         $this->store->log($runId, $source->id, $externalId, 'info', 'Created listing ' . $result . '.');
 
         return $this->done(self::CREATED, $result, $externalId, $warnings);
+    }
+
+    /**
+     * Fetch a record's images, skipping ones already known and ones fetched twice. A refused
+     * image is a warning, never a failure: the listing is still worth having.
+     *
+     * @param array<int,string>    $urls
+     * @param array<int,string>    $known    hashes of images the listing already has
+     * @param array<string,string> $warnings
+     *
+     * @return array<int,array{path: string, hash: string}>
+     */
+    private function fetchImages(array $urls, array $known, array &$warnings): array
+    {
+        if ($urls === array()) {
+            return array();
+        }
+        if ($this->images === null) {
+            $warnings['images'] = 'Images are not imported here.';
+
+            return array();
+        }
+
+        $photos   = array();
+        $deadline = microtime(true) + $this->imageSeconds;
+        foreach (array_values($urls) as $i => $url) {
+            if ($i >= $this->maxImages) {
+                $warnings['images'] = 'Only the first ' . $this->maxImages . ' images are imported.';
+                break;
+            }
+            if (microtime(true) > $deadline) {
+                $warnings['images'] = 'Images took too long; the rest were skipped.';
+                break;
+            }
+            $got = $this->images->fetch((string)$url);
+            if (!$got['ok']) {
+                $warnings['images.' . $i] = $got['error'];
+                continue;
+            }
+            if (in_array($got['hash'], $known, true) || in_array($got['hash'], array_column($photos, 'hash'), true)) {
+                @unlink($got['path']);
+                continue;
+            }
+            $photos[] = array('path' => $got['path'], 'hash' => $got['hash']);
+        }
+
+        return $photos;
     }
 
     /**

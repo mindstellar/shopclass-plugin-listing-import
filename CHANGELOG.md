@@ -9,6 +9,9 @@
 - `POST /api/v1/listings` imports one record: it creates a listing, updates the one it made before, or changes nothing when the record is the same.
 - Records are placed on the site: category by id, slug, path or name; country, region and city by name; owner by id or e-mail; prices such as "1.234,50" read correctly.
 - Imported listings go through core's own listing save, so validation, spam checks, expiry and custom fields apply. The site's moderation and listing limits apply too.
+- Images: each address is downloaded only if every IP its host resolves to is public, on the normal port, over http or https, redirects included. At most 8 MB, and only JPEG, PNG, GIF or WebP.
+- An update adds only images the listing does not already have, compared by content, not by address. An image that fails is a warning; the listing is still imported.
+- Downloaded images nothing took are swept from the temp folder after two hours.
 - Every request is a run with its own log lines, and a record that fails names each problem by its field.
 - The plugin installs its five tables through core's migration runner and removes them on uninstall.
 - `GET /api/v1/ping` answers with the plugin's version.

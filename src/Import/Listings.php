@@ -25,19 +25,21 @@ interface Listings
      *
      * @param array<string,mixed> $fields the fields core's listing form posts
      * @param array<int,mixed>    $meta   custom field id => value
+     * @param array<int,string>   $photos image files to attach; core takes them over
      *
      * @return int|string the new listing's id, or why core refused it
      */
-    public function create(array $fields, array $meta);
+    public function create(array $fields, array $meta, array $photos = array());
 
     /**
      * @param int                 $itemId
      * @param array<string,mixed> $fields
      * @param array<int,mixed>    $meta
+     * @param array<int,string>   $photos image files to add to the listing
      *
      * @return true|string true, or why core refused it
      */
-    public function update(int $itemId, array $fields, array $meta);
+    public function update(int $itemId, array $fields, array $meta, array $photos = array());
 
     /** Hold a listing for an admin to review. */
     public function hold(int $itemId): void;

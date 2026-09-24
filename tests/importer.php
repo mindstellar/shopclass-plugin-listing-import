@@ -120,4 +120,41 @@ harness_section('warnings');
 $r = $importer->import($source, array('colour' => 'red', 'location' => array('country' => 'DE', 'city' => 'Atlantis')) + $record, 1);
 pin('reach the caller, from both the check and the resolver', array('colour', 'location.city'), array_keys($r['warnings']));
 
+harness_section('images');
+
+$GLOBALS['__store']    = new MemoryStore();
+$GLOBALS['__listings'] = new MemoryListings();
+$images                = new FakeImages();
+$images->bodies        = array('https://cdn.example/a.jpg' => 'AAA', 'https://cdn.example/b.jpg' => 'BBB', 'https://mirror.example/a.jpg' => 'AAA');
+$importer              = fake_importer($images);
+$source                = new Source(1, 'API');
+$withImages            = array('images' => array('https://cdn.example/a.jpg', 'https://cdn.example/missing.jpg', 'https://mirror.example/a.jpg')) + $record;
+$r                     = $importer->import($source, $withImages, 1);
+pin('a new listing gets its images, each once even under two addresses', array('AAA'), $GLOBALS['__listings']->items[$r['item_id']]['photos']);
+pin('an image that could not be fetched is a warning, not a failure', array('created', 'The server answered 404.'), array($r['status'], $r['warnings']['images.1'] ?? null));
+
+$images->asked = array();
+$importer->import($source, $withImages, 1);
+pin('an unchanged record fetches nothing', array(), $images->asked);
+
+$more = array('images' => array('https://cdn.example/a.jpg', 'https://cdn.example/b.jpg')) + $record;
+$importer->import($source, $more, 1);
+pin('an update adds only the image the listing lacks', array('AAA', 'BBB'), $GLOBALS['__listings']->items[$r['item_id']]['photos']);
+
+$many = array('external_id' => 'A9', 'images' => array('https://cdn.example/a.jpg', 'https://cdn.example/b.jpg', 'https://x.example/1', 'https://x.example/2')) + $record;
+$r    = $importer->import($source, $many, 1);
+pin('past the limit the rest are skipped, and said', 'Only the first 3 images are imported.', $r['warnings']['images'] ?? null);
+
+$GLOBALS['__store']    = new MemoryStore();
+$GLOBALS['__listings'] = new MemoryListings();
+$importer              = fake_importer($images);
+$before                = count(glob(sys_get_temp_dir() . '/import_*'));
+$importer->import($source, array('title' => 'REFUSE', 'images' => array('https://cdn.example/a.jpg')) + $record, 1);
+pin('a listing core refuses leaves no image behind', $before, count(glob(sys_get_temp_dir() . '/import_*')));
+
+$GLOBALS['__store']    = new MemoryStore();
+$GLOBALS['__listings'] = new MemoryListings();
+$r                     = fake_importer()->import($source, $withImages, 1);
+pin('with no image source, images are skipped and said', 'Images are not imported here.', $r['warnings']['images'] ?? null);
+
 exit(harness_result());

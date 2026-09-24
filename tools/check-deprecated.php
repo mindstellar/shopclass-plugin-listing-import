@@ -10,7 +10,8 @@
  * a class, a hook or a filter. Reads the deprecated-api.json a core checkout generates with
  * `node scripts/gen-deprecated-api.mjs`, and is also attached to each core release.
  *
- * Also refuses a raw Params::getParam(): new code reads input through the typed accessors.
+ * Also refuses functions PHP itself deprecated up to 8.5, rand()-style randomness, and a raw
+ * Params::getParam(): new code reads input through the typed accessors.
  *
  * Usage:  php tools/check-deprecated.php /path/to/deprecated-api.json
  */
@@ -56,6 +57,19 @@ foreach (array_merge($api['hooks'] ?? array(), $api['filters'] ?? array()) as $e
     $name = is_array($entry) ? $entry['name'] : $entry;
     if (preg_match('/[\'"]' . preg_quote($name, '/') . '[\'"]/', $source)) {
         $found[] = 'hook ' . $name;
+    }
+}
+// Functions PHP itself deprecated, up to 8.5. The plugin runs on 8.0 to 8.5.
+$php = array(
+    'curl_close' => '8.5', 'curl_share_close' => '8.5', 'finfo_close' => '8.5', 'imagedestroy' => '8.5',
+    'xml_parser_free' => '8.5', 'mhash' => '8.1', 'strftime' => '8.1', 'gmstrftime' => '8.1',
+    'date_sunrise' => '8.1', 'date_sunset' => '8.1', 'utf8_encode' => '8.2', 'utf8_decode' => '8.2',
+    'odbc_result_all' => '8.1', 'mysqli_ping' => '8.4', 'mysqli_kill' => '8.4', 'mysqli_refresh' => '8.4',
+    'lcg_value' => '8.4', 'uniqid' => 'discouraged', 'rand' => 'discouraged', 'mt_rand' => 'discouraged',
+);
+foreach ($php as $name => $since) {
+    if (preg_match('/(?<![\w>:$])' . preg_quote($name, '/') . '\s*\(/', $source)) {
+        $found[] = $name . '() (PHP ' . ($since === 'discouraged' ? 'discouraged: use random_int/random_bytes' : 'deprecated since ' . $since) . ')';
     }
 }
 if (preg_match_all('/Params::getParam\s*\(/', $source, $m)) {

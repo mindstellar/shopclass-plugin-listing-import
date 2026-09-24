@@ -43,20 +43,21 @@ final class DbStore implements Store
         );
     }
 
-    public function map(int $sourceId, string $externalId, int $itemId, string $hash): void
+    public function map(int $sourceId, string $externalId, int $itemId, string $hash, array $imageHashes = array()): void
     {
         $now     = $this->now();
+        $images  = json_encode(array_values($imageHashes));
         $changed = osc_db_execute(
-            'UPDATE ' . $this->t('item') . " SET fk_i_item_id = ?, s_hash = ?, dt_last_seen = ?, dt_synced = ?, e_status = 'active'"
+            'UPDATE ' . $this->t('item') . " SET fk_i_item_id = ?, s_hash = ?, s_image_hashes = ?, dt_last_seen = ?, dt_synced = ?, e_status = 'active'"
             . ' WHERE fk_i_source_id = ? AND s_external_id = ?',
-            array($itemId, $hash, $now, $now, $sourceId, $externalId)
+            array($itemId, $hash, $images, $now, $now, $sourceId, $externalId)
         );
         if ($changed === 0 && $this->mapped($sourceId, $externalId) === null) {
             osc_db_execute(
                 'INSERT INTO ' . $this->t('item')
-                . ' (fk_i_source_id, s_external_id, fk_i_item_id, s_hash, dt_first_seen, dt_last_seen, dt_synced, e_status)'
-                . " VALUES (?, ?, ?, ?, ?, ?, ?, 'active')",
-                array($sourceId, $externalId, $itemId, $hash, $now, $now, $now)
+                . ' (fk_i_source_id, s_external_id, fk_i_item_id, s_hash, s_image_hashes, dt_first_seen, dt_last_seen, dt_synced, e_status)'
+                . " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+                array($sourceId, $externalId, $itemId, $hash, $images, $now, $now, $now)
             );
         }
     }

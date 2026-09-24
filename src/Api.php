@@ -15,6 +15,9 @@ use mindstellar\listingimport\Auth\DbKeyRepository;
 use mindstellar\listingimport\Auth\FailureCounter;
 use mindstellar\listingimport\Auth\KeyStore;
 use mindstellar\listingimport\Http\Request;
+use mindstellar\listingimport\Images\AddressGuard;
+use mindstellar\listingimport\Images\CurlTransport;
+use mindstellar\listingimport\Images\Fetcher;
 use mindstellar\listingimport\Import\CoreListings;
 use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Import\Importer;
@@ -75,7 +78,12 @@ final class Api
             new KeyStore(new DbKeyRepository(), SigningKey::get()),
             new FailureCounter(),
             (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60),
-            new Importer(new Resolver(new DbLookups(), Site::current()), new CoreListings(), $store),
+            new Importer(
+                new Resolver(new DbLookups(), Site::current()),
+                new CoreListings(),
+                $store,
+                new Fetcher(new AddressGuard(), new CurlTransport(10), Plugin::tempDir())
+            ),
             $store
         );
         $api->dispatch(Request::fromGlobals())->send();

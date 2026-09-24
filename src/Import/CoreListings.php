@@ -42,13 +42,14 @@ final class CoreListings implements Listings
         return osc_db_scalar('SELECT 1 FROM ' . DB_TABLE_PREFIX . 't_item WHERE pk_i_id = ?', array($itemId)) !== null;
     }
 
-    public function create(array $fields, array $meta)
+    public function create(array $fields, array $meta, array $photos = array())
     {
         $this->fill($fields);
         try {
             $actions = new ItemActions(true);
             $actions->prepareData(true);
-            $actions->data['meta'] = $meta;
+            $actions->data['meta']   = $meta;
+            $actions->data['photos'] = self::files($photos);
             $result = $actions->add();
             $itemId = Params::getParamInt('itemId');
         } finally {
@@ -58,14 +59,15 @@ final class CoreListings implements Listings
         return ($result === 1 || $result === 2) && $itemId > 0 ? $itemId : (string)$result;
     }
 
-    public function update(int $itemId, array $fields, array $meta)
+    public function update(int $itemId, array $fields, array $meta, array $photos = array())
     {
         $secret = osc_db_scalar('SELECT s_secret FROM ' . DB_TABLE_PREFIX . 't_item WHERE pk_i_id = ?', array($itemId));
         $this->fill($fields + array('id' => $itemId, 'secret' => (string)$secret));
         try {
             $actions = new ItemActions(true);
             $actions->prepareData(false);
-            $actions->data['meta'] = $meta;
+            $actions->data['meta']   = $meta;
+            $actions->data['photos'] = self::files($photos);
             $result = $actions->edit();
         } finally {
             $this->clear();
@@ -92,6 +94,28 @@ final class CoreListings implements Listings
         $userId = osc_db_scalar('SELECT pk_i_id FROM ' . DB_TABLE_PREFIX . 't_user WHERE s_email = ?', array($ownerEmail));
 
         return $userId === null || Entitlements::canPublish((int)$userId);
+    }
+
+    /**
+     * Files in the shape core reads an upload from. Core re-encodes each one, applies the
+     * site's photo limit for the owner, makes its sizes and deletes the file.
+     *
+     * @param array<int,string> $paths
+     *
+     * @return array<string,array<int,mixed>>
+     */
+    private static function files(array $paths): array
+    {
+        $files = array('name' => array(), 'type' => array(), 'tmp_name' => array(), 'error' => array(), 'size' => array());
+        foreach ($paths as $path) {
+            $files['name'][]     = basename($path);
+            $files['type'][]     = 'image/*';
+            $files['tmp_name'][] = $path;
+            $files['error'][]    = UPLOAD_ERR_OK;
+            $files['size'][]     = (int)filesize($path);
+        }
+
+        return $files;
     }
 
     /**

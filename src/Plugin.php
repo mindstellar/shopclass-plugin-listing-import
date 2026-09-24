@@ -62,6 +62,31 @@ final class Plugin
     }
 
     /**
+     * The site's temp folder, where downloaded images wait for core.
+     *
+     * @return string
+     */
+    public static function tempDir(): string
+    {
+        return osc_content_path() . 'uploads/temp/';
+    }
+
+    /**
+     * Delete downloaded images nothing took, two hours on: the same window core gives its own
+     * uploads.
+     *
+     * @return void
+     */
+    public static function sweep(): void
+    {
+        foreach (glob(self::tempDir() . \mindstellar\listingimport\Images\Fetcher::PREFIX . '*') ?: array() as $file) {
+            if (is_file($file) && time() - (int)filemtime($file) > 7200) {
+                @unlink($file);
+            }
+        }
+    }
+
+    /**
      * @return void
      */
     private static function migrate(): void

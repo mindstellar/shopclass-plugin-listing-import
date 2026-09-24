@@ -104,7 +104,7 @@ function fake_api(int $perMinute = 60): Api
  *
  * @return \mindstellar\listingimport\Import\Importer
  */
-function fake_importer(): \mindstellar\listingimport\Import\Importer
+function fake_importer(?\mindstellar\listingimport\Images\ImageSource $images = null): \mindstellar\listingimport\Import\Importer
 {
     $GLOBALS['__store']    = $GLOBALS['__store'] ?? new MemoryStore();
     $GLOBALS['__listings'] = $GLOBALS['__listings'] ?? new MemoryListings();
@@ -115,7 +115,9 @@ function fake_importer(): \mindstellar\listingimport\Import\Importer
             new \mindstellar\listingimport\Resolve\Site(array('en_US', 'de_DE'), 'en_US', ',', 'site@example.com')
         ),
         $GLOBALS['__listings'],
-        $GLOBALS['__store']
+        $GLOBALS['__store'],
+        $images,
+        3
     );
 }
 
@@ -203,9 +205,9 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
         return $this->map[$sourceId . '|' . $externalId] ?? null;
     }
 
-    public function map(int $sourceId, string $externalId, int $itemId, string $hash): void
+    public function map(int $sourceId, string $externalId, int $itemId, string $hash, array $imageHashes = array()): void
     {
-        $this->map[$sourceId . '|' . $externalId] = array('fk_i_item_id' => $itemId, 's_hash' => $hash);
+        $this->map[$sourceId . '|' . $externalId] = array('fk_i_item_id' => $itemId, 's_hash' => $hash, 's_image_hashes' => json_encode($imageHashes));
     }
 
     public function seen(int $sourceId, string $externalId): void
@@ -245,22 +247,39 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
         return isset($this->items[$itemId]);
     }
 
-    public function create(array $fields, array $meta)
+    public function create(array $fields, array $meta, array $photos = array())
     {
         if (in_array($this->refuseTitle, $fields['title'], true)) {
             return 'Title too short.';
         }
         $id               = count($this->items) + 100;
-        $this->items[$id] = array('fields' => $fields, 'meta' => $meta, 'edits' => 0);
+        $this->items[$id] = array('fields' => $fields, 'meta' => $meta, 'edits' => 0, 'photos' => $this->take($photos));
 
         return $id;
     }
 
-    public function update(int $itemId, array $fields, array $meta)
+    public function update(int $itemId, array $fields, array $meta, array $photos = array())
     {
-        $this->items[$itemId] = array('fields' => $fields, 'meta' => $meta, 'edits' => $this->items[$itemId]['edits'] + 1);
+        $this->items[$itemId] = array(
+            'fields' => $fields,
+            'meta'   => $meta,
+            'edits'  => $this->items[$itemId]['edits'] + 1,
+            'photos' => array_merge($this->items[$itemId]['photos'], $this->take($photos)),
+        );
 
         return true;
+    }
+
+    /** Take files over as core does: read them, then delete them. */
+    private function take(array $paths): array
+    {
+        $contents = array();
+        foreach ($paths as $path) {
+            $contents[] = file_get_contents($path);
+            unlink($path);
+        }
+
+        return $contents;
     }
 
     public function hold(int $itemId): void
@@ -276,5 +295,25 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
     public function canPublish(string $ownerEmail): bool
     {
         return !in_array($ownerEmail, $this->limited, true);
+    }
+}
+
+/** Images keyed by address: a string is the body, an int is an HTTP status. */
+final class FakeImages implements \mindstellar\listingimport\Images\ImageSource
+{
+    public array $bodies = array();
+    public array $asked  = array();
+
+    public function fetch(string $url): array
+    {
+        $this->asked[] = $url;
+        $body          = $this->bodies[$url] ?? 404;
+        if (!is_string($body)) {
+            return array('ok' => false, 'error' => 'The server answered ' . $body . '.');
+        }
+        $path = tempnam(sys_get_temp_dir(), 'import_');
+        file_put_contents($path, $body);
+
+        return array('ok' => true, 'path' => $path, 'hash' => hash('sha256', $body));
     }
 }

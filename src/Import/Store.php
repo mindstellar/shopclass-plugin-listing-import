@@ -26,9 +26,12 @@ interface Store
     public function mapped(int $sourceId, string $externalId): ?array;
 
     /**
-     * Remember (or update) which listing an outside record became, and its content hash.
+     * Remember (or update) which listing an outside record became, its content hash, and the
+     * hashes of the images already on it.
+     *
+     * @param array<int,string> $imageHashes
      */
-    public function map(int $sourceId, string $externalId, int $itemId, string $hash): void;
+    public function map(int $sourceId, string $externalId, int $itemId, string $hash, array $imageHashes = array()): void;
 
     /** Mark an outside record as seen now, without changing it. */
     public function seen(int $sourceId, string $externalId): void;
