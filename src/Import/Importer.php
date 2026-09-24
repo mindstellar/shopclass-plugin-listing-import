@@ -103,17 +103,18 @@ final class Importer
             $this->listings->activate($itemId);
         }
 
+        // A preview shows where every record lands, changed or not.
+        $preview = $dryRun ? array('fields' => $resolved['fields']) : array();
         if ($itemId !== null && $mapped['s_hash'] === $hash) {
             if (!$dryRun) {
                 $this->store->map($source->id, $externalId, $itemId, $hash, json_decode((string)($mapped['s_image_hashes'] ?? ''), true) ?: array());
             }
 
-            return $this->done($retired ? self::UPDATED : self::UNCHANGED, $itemId, $externalId, $warnings);
+            return $this->done($retired ? self::UPDATED : self::UNCHANGED, $itemId, $externalId, $warnings) + $preview;
         }
 
         if ($dryRun) {
-            return $this->done($itemId === null ? self::CREATED : self::UPDATED, $itemId, $externalId, $warnings)
-                + array('fields' => $resolved['fields']);
+            return $this->done($itemId === null ? self::CREATED : self::UPDATED, $itemId, $externalId, $warnings) + $preview;
         }
 
         if ($itemId === null && !empty($source->policy['respect_caps'])
@@ -194,6 +195,12 @@ final class Importer
             $got = $this->images->fetch((string)$url);
             if (!$got['ok']) {
                 $warnings['images.' . $i] = $got['error'];
+                continue;
+            }
+            $refused = $this->listings->refuseImage($got['path']);
+            if ($refused !== null) {
+                @unlink($got['path']);
+                $warnings['images.' . $i] = $refused;
                 continue;
             }
             if (in_array($got['hash'], $known, true) || in_array($got['hash'], array_column($photos, 'hash'), true)) {

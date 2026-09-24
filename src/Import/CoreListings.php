@@ -13,6 +13,7 @@ namespace mindstellar\listingimport\Import;
 
 use ItemActions;
 use mindstellar\billing\Entitlements;
+use mindstellar\storage\UploadMimes;
 use Params;
 
 /**
@@ -119,6 +120,18 @@ final class CoreListings implements Listings
         $userId = osc_db_scalar('SELECT pk_i_id FROM ' . DB_TABLE_PREFIX . 't_user WHERE s_email = ?', array($ownerEmail));
 
         return $userId === null || Entitlements::canPublish((int)$userId);
+    }
+
+    public function refuseImage(string $path): ?string
+    {
+        if (!UploadMimes::isAllowedImage($path)) {
+            return 'This site does not accept that image type.';
+        }
+        if ((int)filesize($path) > osc_max_size_kb() * 1024) {
+            return 'Larger than this site accepts (' . osc_max_size_kb() . ' KB).';
+        }
+
+        return null;
     }
 
     /**

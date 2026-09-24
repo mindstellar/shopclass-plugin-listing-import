@@ -64,4 +64,10 @@ interface Listings
      * listings. An address with no account is never limited.
      */
     public function canPublish(string $ownerEmail): bool;
+
+    /**
+     * Why the site would refuse this image file, or null when it takes it. Core refuses the
+     * whole listing over one bad photo, so each is checked first.
+     */
+    public function refuseImage(string $path): ?string;
 }

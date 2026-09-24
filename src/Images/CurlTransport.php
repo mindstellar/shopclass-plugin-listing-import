@@ -62,12 +62,12 @@ final class CurlTransport implements Transport
 
         if ($ok === false) {
             if (in_array($errno, array(CURLE_FILESIZE_EXCEEDED, CURLE_ABORTED_BY_CALLBACK), true)) {
-                return array('error' => 'The image is larger than the limit.');
+                return array('error' => 'The file is larger than the limit.');
             }
 
             return array('error' => $errno === CURLE_OPERATION_TIMEDOUT
-                ? 'The image server did not answer in time.'
-                : 'The image could not be downloaded.');
+                ? 'The server did not answer in time.'
+                : 'The file could not be downloaded.');
         }
 
         return array('status' => $status, 'location' => $location);

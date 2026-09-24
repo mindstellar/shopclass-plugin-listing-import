@@ -400,6 +400,14 @@ final class MemoryListings implements \mindstellar\listingimport\Import\Listings
 
     public array $inactive = array();
 
+    /** Content the site refuses, as a stand-in for a type or size it does not take. */
+    public string $refuseImageWith = 'REFUSED-IMAGE';
+
+    public function refuseImage(string $path): ?string
+    {
+        return strpos((string)file_get_contents($path), $this->refuseImageWith) !== false ? 'This site does not accept that image type.' : null;
+    }
+
     public function delete(int $itemId): bool
     {
         unset($this->items[$itemId]);

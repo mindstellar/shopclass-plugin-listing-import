@@ -81,7 +81,7 @@ final class ScriptedTransport implements Transport
         $this->asked[] = $url . ' @' . $ip;
         [$status, $location, $body] = $this->pages[$url] ?? array(404, '', '');
         if (strlen($body) > $maxBytes) {
-            return array('error' => 'The image is larger than the limit.');
+            return array('error' => 'The file is larger than the limit.');
         }
         file_put_contents($file, $body);
 
@@ -118,7 +118,7 @@ $web->pages['https://cdn.example/page.html'] = array(200, '', '<html>not an imag
 pin('something that is not an image is refused', 'Not a JPEG, PNG, GIF or WebP image.', $get->fetch('https://cdn.example/page.html')['error'] ?? null);
 
 $web->pages['https://cdn.example/huge.png'] = array(200, '', $png . str_repeat('x', 2000));
-pin('an image over the cap is refused', 'The image is larger than the limit.', $get->fetch('https://cdn.example/huge.png')['error'] ?? null);
+pin('an image over the cap is refused', 'The file is larger than the limit.', $get->fetch('https://cdn.example/huge.png')['error'] ?? null);
 
 pin('a missing image says so', 'The server answered 404.', $get->fetch('https://cdn.example/none.png')['error'] ?? null);
 

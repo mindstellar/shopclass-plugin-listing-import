@@ -71,6 +71,9 @@ harness_section('a dry run');
 $r = $importer->import($source, $record, 1, true);
 pin('says what would happen', 'created', $r['status']);
 pin('and changes nothing', array(array(), array()), array($GLOBALS['__listings']->items, $GLOBALS['__store']->map));
+$importer->import($source, $record, 1);
+$r = $importer->import($source, $record, 1, true);
+pin('an unchanged record still shows where it lands', array('unchanged', true), array($r['status'], isset($r['fields']['catId'])));
 
 harness_section('moderation');
 
@@ -151,6 +154,12 @@ $importer              = fake_importer($images);
 $before                = count(glob(sys_get_temp_dir() . '/import_*'));
 $importer->import($source, array('title' => 'REFUSE', 'images' => array('https://cdn.example/a.jpg')) + $record, 1);
 pin('a listing core refuses leaves no image behind', $before, count(glob(sys_get_temp_dir() . '/import_*')));
+
+$images->bodies['https://cdn.example/c.webp'] = 'REFUSED-IMAGE';
+$before = count(glob(sys_get_temp_dir() . '/import_*'));
+$r      = $importer->import($source, array('external_id' => 'W1', 'images' => array('https://cdn.example/c.webp', 'https://cdn.example/b.jpg')) + $record, 1);
+pin('an image the site would refuse is skipped with a warning; the listing is still made', array('created', array('BBB'), 'This site does not accept that image type.'), array($r['status'], $GLOBALS['__listings']->items[$r['item_id']]['photos'] ?? null, $r['warnings']['images.0'] ?? null));
+pin('and its file is deleted', $before, count(glob(sys_get_temp_dir() . '/import_*')));
 
 $GLOBALS['__store']    = new MemoryStore();
 $GLOBALS['__listings'] = new MemoryListings();
