@@ -105,6 +105,8 @@ return new class () implements MigrationInterface {
             . ' fk_i_source_id INT UNSIGNED NOT NULL,'
             . " s_trigger VARCHAR(10) NOT NULL DEFAULT 'push',"
             . ' b_dry_run TINYINT(1) NOT NULL DEFAULT 0,'
+            // How many records the run holds, so a run of queued jobs knows when it is done.
+            . ' i_total INT UNSIGNED NOT NULL DEFAULT 0,'
             . ' dt_started DATETIME NOT NULL,'
             . ' dt_finished DATETIME NULL DEFAULT NULL,'
             . ' i_created INT UNSIGNED NOT NULL DEFAULT 0,'

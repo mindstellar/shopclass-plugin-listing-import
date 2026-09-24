@@ -11,6 +11,17 @@
 
 namespace mindstellar\listingimport;
 
+use mindstellar\listingimport\Images\AddressGuard;
+use mindstellar\listingimport\Images\CurlTransport;
+use mindstellar\listingimport\Images\Fetcher;
+use mindstellar\listingimport\Import\Batch;
+use mindstellar\listingimport\Import\CoreListings;
+use mindstellar\listingimport\Import\DbStore;
+use mindstellar\listingimport\Import\Importer;
+use mindstellar\listingimport\Resolve\DbLookups;
+use mindstellar\listingimport\Resolve\Resolver;
+use mindstellar\listingimport\Resolve\Site;
+
 /**
  * The plugin's names and its install, upgrade and uninstall steps.
  */
@@ -59,6 +70,54 @@ final class Plugin
         foreach (array('schema', 'retention_days', 'rate_limit') as $name) {
             osc_delete_preference($name, self::PAGE);
         }
+    }
+
+    /**
+     * The importer as the site runs it: its own tables, core's listing save, and images
+     * fetched through the address guard.
+     *
+     * @return Importer
+     */
+    public static function importer(): Importer
+    {
+        return new Importer(
+            new Resolver(new DbLookups(), Site::current()),
+            new CoreListings(),
+            new DbStore(),
+            new Fetcher(new AddressGuard(), new CurlTransport(10), self::tempDir())
+        );
+    }
+
+    /**
+     * @return Batch
+     */
+    public static function batch(): Batch
+    {
+        return new Batch(self::importer(), new DbStore());
+    }
+
+    /**
+     * Tell core's queue who runs a queued record. Registered on `register_jobs`, so the
+     * handler exists in the cron request that runs the job.
+     *
+     * @return void
+     */
+    public static function registerJobs(): void
+    {
+        osc_job_register_handler(Batch::JOB, static function ($job): void {
+            self::batch()->work($job->payload());
+        });
+    }
+
+    /**
+     * Delete log lines older than the retention setting. Runs once a day.
+     *
+     * @return void
+     */
+    public static function prune(): void
+    {
+        $days = max(1, (int)(osc_get_preference('retention_days', self::PAGE) ?: 30));
+        (new DbStore())->pruneLogs(date('Y-m-d H:i:s', time() - $days * 86400));
     }
 
     /**

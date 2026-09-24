@@ -86,11 +86,11 @@ final class DbStore implements Store
         );
     }
 
-    public function startRun(int $sourceId, string $trigger, bool $dryRun): int
+    public function startRun(int $sourceId, string $trigger, bool $dryRun, int $total = 1): int
     {
         return osc_db_insert_id(
-            'INSERT INTO ' . $this->t('run') . ' (fk_i_source_id, s_trigger, b_dry_run, dt_started) VALUES (?, ?, ?, ?)',
-            array($sourceId, $trigger, $dryRun ? 1 : 0, $this->now())
+            'INSERT INTO ' . $this->t('run') . ' (fk_i_source_id, s_trigger, b_dry_run, i_total, dt_started) VALUES (?, ?, ?, ?, ?)',
+            array($sourceId, $trigger, $dryRun ? 1 : 0, $total, $this->now())
         );
     }
 
@@ -127,5 +127,68 @@ final class DbStore implements Store
                 $this->now(),
             )
         );
+    }
+
+    public function addCounts(int $runId, array $counts): void
+    {
+        osc_db_execute(
+            'UPDATE ' . $this->t('run') . ' SET i_created = i_created + ?, i_updated = i_updated + ?,'
+            . ' i_unchanged = i_unchanged + ?, i_retired = i_retired + ?, i_failed = i_failed + ? WHERE pk_i_id = ?',
+            array(
+                $counts['created'] ?? 0,
+                $counts['updated'] ?? 0,
+                $counts['unchanged'] ?? 0,
+                $counts['retired'] ?? 0,
+                $counts['failed'] ?? 0,
+                $runId,
+            )
+        );
+    }
+
+    public function closeRun(int $runId): void
+    {
+        osc_db_execute('UPDATE ' . $this->t('run') . ' SET dt_finished = ? WHERE pk_i_id = ?', array($this->now(), $runId));
+    }
+
+    public function run(int $runId): ?array
+    {
+        return osc_db_select_one('SELECT * FROM ' . $this->t('run') . ' WHERE pk_i_id = ?', array($runId));
+    }
+
+    public function recentRuns(int $limit): array
+    {
+        return osc_db_select(
+            'SELECT r.*, s.s_name FROM ' . $this->t('run') . ' r LEFT JOIN ' . $this->t('source') . ' s ON s.pk_i_id = r.fk_i_source_id'
+            . ' ORDER BY r.pk_i_id DESC LIMIT ' . max(1, $limit)
+        );
+    }
+
+    public function runErrors(int $runId, int $limit): array
+    {
+        $errors = array();
+        foreach (osc_db_select(
+            'SELECT s_external_id, s_context FROM ' . $this->t('log') . " WHERE fk_i_run_id = ? AND e_level = 'error'"
+            . ' ORDER BY pk_i_id LIMIT ' . max(1, $limit),
+            array($runId)
+        ) as $row) {
+            $context  = json_decode((string)$row['s_context'], true);
+            $errors[] = array('external_id' => (string)$row['s_external_id'], 'errors' => (array)($context['errors'] ?? array()));
+        }
+
+        return $errors;
+    }
+
+    public function closeIfDone(int $runId): void
+    {
+        osc_db_execute(
+            'UPDATE ' . $this->t('run') . ' SET dt_finished = ? WHERE pk_i_id = ? AND dt_finished IS NULL'
+            . ' AND i_created + i_updated + i_unchanged + i_retired + i_failed >= i_total',
+            array($this->now(), $runId)
+        );
+    }
+
+    public function pruneLogs(string $before): int
+    {
+        return osc_db_execute('DELETE FROM ' . $this->t('log') . ' WHERE dt_date < ?', array($before));
     }
 }

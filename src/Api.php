@@ -15,16 +15,10 @@ use mindstellar\listingimport\Auth\DbKeyRepository;
 use mindstellar\listingimport\Auth\FailureCounter;
 use mindstellar\listingimport\Auth\KeyStore;
 use mindstellar\listingimport\Http\Request;
-use mindstellar\listingimport\Images\AddressGuard;
-use mindstellar\listingimport\Images\CurlTransport;
-use mindstellar\listingimport\Images\Fetcher;
-use mindstellar\listingimport\Import\CoreListings;
+use mindstellar\listingimport\Import\Batch;
 use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Import\Importer;
 use mindstellar\listingimport\Import\Store;
-use mindstellar\listingimport\Resolve\DbLookups;
-use mindstellar\listingimport\Resolve\Resolver;
-use mindstellar\listingimport\Resolve\Site;
 use mindstellar\listingimport\Http\Response;
 use mindstellar\security\SigningKey;
 
@@ -34,10 +28,12 @@ use mindstellar\security\SigningKey;
  */
 final class Api
 {
-    /** method path => [handler, scope]. A null scope is open to anyone. */
+    /** method path => [handler, scope]. A path may hold a {id}; a null scope is open to anyone. */
     private const ROUTES = array(
-        'GET ping'      => array('ping', null),
-        'POST listings' => array('createListing', KeyStore::SCOPE_WRITE),
+        'GET ping'            => array('ping', null),
+        'POST listings'       => array('createListing', KeyStore::SCOPE_WRITE),
+        'POST listings:batch' => array('createBatch', KeyStore::SCOPE_WRITE),
+        'GET runs/{id}'       => array('showRun', KeyStore::SCOPE_RUNS),
     );
 
     private KeyStore $keys;
@@ -50,15 +46,19 @@ final class Api
 
     private Store $store;
 
+    private Batch $batch;
+
     /**
      * @param KeyStore       $keys
      * @param FailureCounter $failures
      * @param int            $perMinute requests a key may send each minute
      * @param Importer       $importer
      * @param Store          $store
+     * @param Batch          $batch
      */
-    public function __construct(KeyStore $keys, FailureCounter $failures, int $perMinute, Importer $importer, Store $store)
+    public function __construct(KeyStore $keys, FailureCounter $failures, int $perMinute, Importer $importer, Store $store, Batch $batch)
     {
+        $this->batch     = $batch;
         $this->keys      = $keys;
         $this->failures  = $failures;
         $this->perMinute = max(1, $perMinute);
@@ -78,13 +78,9 @@ final class Api
             new KeyStore(new DbKeyRepository(), SigningKey::get()),
             new FailureCounter(),
             (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60),
-            new Importer(
-                new Resolver(new DbLookups(), Site::current()),
-                new CoreListings(),
-                $store,
-                new Fetcher(new AddressGuard(), new CurlTransport(10), Plugin::tempDir())
-            ),
-            $store
+            Plugin::importer(),
+            $store,
+            Plugin::batch()
         );
         $api->dispatch(Request::fromGlobals())->send();
     }
@@ -98,7 +94,7 @@ final class Api
      */
     public function dispatch(Request $request): Response
     {
-        $route = self::ROUTES[$request->method . ' ' . $request->path] ?? null;
+        [$route, $args] = $this->match($request->method, $request->path);
         if ($route === null) {
             $allowed = $this->methodsFor($request->path);
 
@@ -126,7 +122,7 @@ final class Api
             }
         }
 
-        return $this->$handler($request, $key ?? null);
+        return $this->$handler($request, $key ?? null, $args);
     }
 
     /**
@@ -151,9 +147,9 @@ final class Api
         if ($record instanceof Response) {
             return $record;
         }
-        $source = $this->store->source($key['fk_i_source_id'] === null ? null : (int)$key['fk_i_source_id']);
-        if ($source === null) {
-            return Response::error(409, 'no_source', 'This key imports into a source that is missing or switched off.');
+        $source = $this->source($key);
+        if ($source instanceof Response) {
+            return $source;
         }
 
         $runId  = $this->store->startRun($source->id, 'push', false);
@@ -179,6 +175,115 @@ final class Api
     }
 
     /**
+     * Start a run for up to MAX_RECORDS records and queue them. The answer is at once; the
+     * run's page says how it went.
+     *
+     * @param Request             $request
+     * @param array<string,mixed> $key
+     *
+     * @return Response
+     */
+    private function createBatch(Request $request, array $key): Response
+    {
+        $body = $request->json();
+        if ($body instanceof Response) {
+            return $body;
+        }
+        $records = $body['records'] ?? null;
+        if (!is_array($records) || $records === array() || array_keys($records) !== range(0, count($records) - 1)) {
+            return Response::error(422, 'invalid_batch', 'Send {"records": [...]} with at least one record.');
+        }
+        if (count($records) > Batch::MAX_RECORDS) {
+            return Response::error(413, 'too_many_records', 'At most ' . Batch::MAX_RECORDS . ' records per batch.');
+        }
+        $source = $this->source($key);
+        if ($source instanceof Response) {
+            return $source;
+        }
+        $runId = $this->batch->queue($source, $records, 'push');
+
+        return Response::ok(array('run_id' => $runId, 'records' => count($records), 'status' => 'queued'), 202);
+    }
+
+    /**
+     * How a run went. A key sees only runs of its own source.
+     *
+     * @param Request             $request
+     * @param array<string,mixed> $key
+     * @param array<int,string>   $args the run id
+     *
+     * @return Response
+     */
+    private function showRun(Request $request, array $key, array $args): Response
+    {
+        $run    = $this->store->run((int)$args[0]);
+        $source = $this->source($key);
+        if ($run === null || $source instanceof Response || (int)$run['fk_i_source_id'] !== $source->id) {
+            return Response::error(404, 'not_found', 'No such run.');
+        }
+        $counts = array();
+        foreach (array('created', 'updated', 'unchanged', 'retired', 'failed') as $name) {
+            $counts[$name] = (int)$run['i_' . $name];
+        }
+
+        return Response::ok(array(
+            'run_id'      => (int)$run['pk_i_id'],
+            'status'      => $run['dt_finished'] === null ? 'running' : 'finished',
+            'records'     => (int)$run['i_total'],
+            'counts'      => $counts,
+            'started_at'  => (string)$run['dt_started'],
+            'finished_at' => $run['dt_finished'] === null ? null : (string)$run['dt_finished'],
+            'failures'    => $this->store->runErrors((int)$run['pk_i_id'], 50),
+        ));
+    }
+
+    /**
+     * The source a key imports into.
+     *
+     * @param array<string,mixed> $key
+     *
+     * @return \mindstellar\listingimport\Import\Source|Response
+     */
+    private function source(array $key)
+    {
+        $source = $this->store->source($key['fk_i_source_id'] === null ? null : (int)$key['fk_i_source_id']);
+
+        return $source ?? Response::error(409, 'no_source', 'This key imports into a source that is missing or switched off.');
+    }
+
+    /**
+     * The route for a method and path, and what its {id} matched.
+     *
+     * @param string $method
+     * @param string $path
+     *
+     * @return array{0: array{0: string, 1: ?string}|null, 1: array<int,string>}
+     */
+    private function match(string $method, string $path): array
+    {
+        foreach (self::ROUTES as $route => $spec) {
+            [$routeMethod, $pattern] = explode(' ', $route, 2);
+            if ($routeMethod === $method && preg_match(self::regex($pattern), $path, $m)) {
+                return array($spec, array_slice($m, 1));
+            }
+        }
+
+        return array(null, array());
+    }
+
+    /**
+     * A route's path as a regex; {id} matches a number.
+     *
+     * @param string $pattern
+     *
+     * @return string
+     */
+    private static function regex(string $pattern): string
+    {
+        return '#^' . str_replace('\\{id\\}', '([0-9]+)', preg_quote($pattern, '#')) . '$#';
+    }
+
+    /**
      * @param string $path
      *
      * @return array<int,string> the methods this path answers
@@ -187,8 +292,8 @@ final class Api
     {
         $methods = array();
         foreach (array_keys(self::ROUTES) as $route) {
-            [$method, $routePath] = explode(' ', $route, 2);
-            if ($routePath === $path) {
+            [$method, $pattern] = explode(' ', $route, 2);
+            if (preg_match(self::regex($pattern), $path)) {
                 $methods[] = $method;
             }
         }

@@ -96,7 +96,17 @@ function fake_api(int $perMinute = 60): Api
     $GLOBALS['__store']    = new MemoryStore();
     $GLOBALS['__listings'] = new MemoryListings();
 
-    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute, fake_importer(), $GLOBALS['__store']);
+    $GLOBALS['__jobs']     = array();
+    $importer              = fake_importer();
+    $batch                 = new \mindstellar\listingimport\Import\Batch(
+        $importer,
+        $GLOBALS['__store'],
+        static function (string $type, array $payload) {
+            $GLOBALS['__jobs'][] = array($type, $payload);
+        }
+    );
+
+    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute, $importer, $GLOBALS['__store'], $batch);
 }
 
 /**
@@ -215,16 +225,71 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
         $this->map[$sourceId . '|' . $externalId]['seen'] = true;
     }
 
-    public function startRun(int $sourceId, string $trigger, bool $dryRun): int
+    public function startRun(int $sourceId, string $trigger, bool $dryRun, int $total = 1): int
     {
-        $this->runs[] = array('source' => $sourceId, 'trigger' => $trigger, 'dry' => $dryRun);
+        $this->runs[] = array(
+            'pk_i_id' => count($this->runs) + 1, 'fk_i_source_id' => $sourceId, 's_trigger' => $trigger, 'b_dry_run' => $dryRun,
+            'i_total' => $total, 'i_created' => 0, 'i_updated' => 0, 'i_unchanged' => 0, 'i_retired' => 0, 'i_failed' => 0,
+            'dt_started' => '2026-09-24 10:00:00', 'dt_finished' => null,
+        );
 
         return count($this->runs);
     }
 
     public function finishRun(int $runId, array $counts, string $summary): void
     {
-        $this->runs[$runId - 1]['counts'] = $counts;
+        foreach ($counts as $name => $n) {
+            $this->runs[$runId - 1]['i_' . $name] = $n;
+        }
+        $this->runs[$runId - 1]['dt_finished'] = '2026-09-24 10:00:01';
+    }
+
+    public function addCounts(int $runId, array $counts): void
+    {
+        foreach ($counts as $name => $n) {
+            $this->runs[$runId - 1]['i_' . $name] += $n;
+        }
+    }
+
+    public function closeRun(int $runId): void
+    {
+        $this->runs[$runId - 1]['dt_finished'] = '2026-09-24 10:00:01';
+    }
+
+    public function closeIfDone(int $runId): void
+    {
+        $r    = $this->runs[$runId - 1];
+        $done = $r['i_created'] + $r['i_updated'] + $r['i_unchanged'] + $r['i_retired'] + $r['i_failed'];
+        if ($r['dt_finished'] === null && $done >= $r['i_total']) {
+            $this->closeRun($runId);
+        }
+    }
+
+    public function run(int $runId): ?array
+    {
+        return $this->runs[$runId - 1] ?? null;
+    }
+
+    public function recentRuns(int $limit): array
+    {
+        return array_slice(array_reverse($this->runs), 0, $limit);
+    }
+
+    public function runErrors(int $runId, int $limit): array
+    {
+        $errors = array();
+        foreach ($this->logs as [$run, $externalId, $level, $message, $context]) {
+            if ($run === $runId && $level === 'error') {
+                $errors[] = array('external_id' => $externalId, 'errors' => (array)($context['errors'] ?? array()));
+            }
+        }
+
+        return array_slice($errors, 0, $limit);
+    }
+
+    public function pruneLogs(string $before): int
+    {
+        return 0;
     }
 
     public function log(int $runId, int $sourceId, string $externalId, string $level, string $message, array $context = array()): void

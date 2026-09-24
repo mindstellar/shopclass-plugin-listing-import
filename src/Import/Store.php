@@ -36,13 +36,44 @@ interface Store
     /** Mark an outside record as seen now, without changing it. */
     public function seen(int $sourceId, string $externalId): void;
 
-    /** Start a run; returns its id. */
-    public function startRun(int $sourceId, string $trigger, bool $dryRun): int;
+    /** Start a run of $total records; returns its id. */
+    public function startRun(int $sourceId, string $trigger, bool $dryRun, int $total = 1): int;
 
     /**
      * @param array<string,int> $counts created, updated, unchanged, retired, failed
      */
     public function finishRun(int $runId, array $counts, string $summary): void;
+
+    /**
+     * Add to a run's counts, for a run that finishes over several steps.
+     *
+     * @param array<string,int> $counts
+     */
+    public function addCounts(int $runId, array $counts): void;
+
+    /** Mark a run finished. */
+    public function closeRun(int $runId): void;
+
+    /**
+     * @return array<string,mixed>|null the run row
+     */
+    public function run(int $runId): ?array;
+
+    /**
+     * @return array<int,array<string,mixed>> the newest runs first
+     */
+    public function recentRuns(int $limit): array;
+
+    /**
+     * @return array<int,array{external_id: string, errors: array<string,string>}> a run's failed records
+     */
+    public function runErrors(int $runId, int $limit): array;
+
+    /** Mark a run finished once every one of its records is counted. */
+    public function closeIfDone(int $runId): void;
+
+    /** Delete log lines older than a date; returns how many. */
+    public function pruneLogs(string $before): int;
 
     /**
      * @param array<string,mixed> $context

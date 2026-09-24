@@ -12,6 +12,10 @@
 - Images: each address is downloaded only if every IP its host resolves to is public, on the normal port, over http or https, redirects included. At most 8 MB, and only JPEG, PNG, GIF or WebP.
 - An update adds only images the listing does not already have, compared by content, not by address. An image that fails is a warning; the listing is still imported.
 - Downloaded images nothing took are swept from the temp folder after two hours.
+- `POST /api/v1/listings:batch` takes up to 200 records and answers at once; each record becomes one job in core's background queue, so core retries it and **Tools → Background jobs** shows it.
+- `GET /api/v1/runs/{id}` says how a run went: its counts, whether it is finished, and each failed record with its reasons. A key sees only its own source's runs.
+- `php oc-cli.php import:run --file=` imports a JSON or NDJSON file at once, with `--dry-run` to change nothing; `import:status` lists recent runs; `import:key:create` makes a key.
+- Import log lines older than the retention setting are deleted once a day.
 - Every request is a run with its own log lines, and a record that fails names each problem by its field.
 - The plugin installs its five tables through core's migration runner and removes them on uninstall.
 - `GET /api/v1/ping` answers with the plugin's version.

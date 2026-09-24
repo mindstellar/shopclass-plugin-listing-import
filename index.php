@@ -25,6 +25,7 @@ Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issu
 
 use mindstellar\listingimport\Admin\Keys;
 use mindstellar\listingimport\Api;
+use mindstellar\listingimport\Cli;
 use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Plugin;
 
@@ -56,6 +57,13 @@ osc_add_hook('init', array(Plugin::class, 'upgrade'));
 
 osc_add_route_hook(Plugin::ROUTE, 'api/v1/(.+)', 'api/v1/{path}');
 osc_add_hook(Plugin::ROUTE, array(Api::class, 'handle'));
+
+// Batches run as core's background jobs, one per record; old log lines go once a day.
+osc_add_hook('register_jobs', array(Plugin::class, 'registerJobs'));
+osc_add_hook('cron_daily', array(Plugin::class, 'prune'));
+
+// php oc-cli.php import:run, import:status and import:key:create.
+osc_add_filter('cli_commands', array(Cli::class, 'commands'));
 
 // Downloaded images that nothing took are removed after two hours.
 osc_add_hook('cron_hourly', array(Plugin::class, 'sweep'));

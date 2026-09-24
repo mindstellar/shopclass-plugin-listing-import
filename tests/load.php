@@ -32,6 +32,10 @@ function osc_add_hook($name, $fn, $priority = 10)
 {
     $GLOBALS['__hooks'][$name][] = $fn;
 }
+function osc_add_filter($name, $fn, $priority = 10)
+{
+    $GLOBALS['__hooks']['filter:' . $name][] = $fn;
+}
 function osc_register_settings_page($id, $spec)
 {
     $GLOBALS['__settings'][$id] = $spec;
@@ -69,6 +73,12 @@ pin('the settings page is declared under the plugin id', array('listing-import')
 pin('its fields', array('rate_limit', 'retention_days'), array_column($GLOBALS['__settings']['listing-import']['groups'][0]['fields'], 'name'));
 pin('one API route, under /api/v1/', array('api/v1/(.+)', 'api/v1/{path}'), $GLOBALS['__routes'][Plugin::ROUTE] ?? null);
 pin('the keys screen is an admin route file', array('listing-import/keys', 'listing-import/keys', 'listing-import/admin/keys.php'), $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Keys::ROUTE] ?? null);
+pin('queued records have a job handler, and logs are pruned daily', array(
+    array(array(Plugin::class, 'registerJobs')),
+    array(array(Plugin::class, 'prune')),
+), array($GLOBALS['__hooks']['register_jobs'] ?? null, $GLOBALS['__hooks']['cron_daily'] ?? null));
+pin('the commands join oc-cli.php', array(array(\mindstellar\listingimport\Cli::class, 'commands')), $GLOBALS['__hooks']['filter:cli_commands'] ?? null);
+pin('as import:run, import:status and import:key:create', array('import:run', 'import:status', 'import:key:create'), array_keys(\mindstellar\listingimport\Cli::commands(array())));
 pin('old downloaded images are swept hourly', array(array(Plugin::class, 'sweep')), $GLOBALS['__hooks']['cron_hourly'] ?? null);
 pin('a deleted listing is forgotten', array(array(\mindstellar\listingimport\Import\DbStore::class, 'forget')), $GLOBALS['__hooks']['before_delete_item'] ?? null);
 pin('with a menu entry and a post handler', array(
