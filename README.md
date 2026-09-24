@@ -4,8 +4,6 @@ Import listings into Shopclass from other systems: a keyed REST API, and schedul
 CSV and RSS feeds. Every listing goes through the same checks as one posted by hand:
 moderation, spam checks, listing limits and expiry.
 
-> **Status: in development.** Not released yet.
-
 ![Import sources](assets/screenshot-1.png)
 
 | | |
