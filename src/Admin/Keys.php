@@ -50,7 +50,7 @@ final class Keys
      */
     public static function handlePost(): void
     {
-        if (Params::getParam('route') !== self::ROUTE
+        if (Params::getParamString('route') !== self::ROUTE
             || Params::getServerParam('REQUEST_METHOD') !== 'POST'
             || Params::getParamString('li_do') === ''
         ) {
@@ -66,7 +66,7 @@ final class Keys
         switch (Params::getParamString('li_do')) {
             case 'create':
                 $name   = trim(Params::getParamString('name'));
-                $scopes = array_values(array_intersect(KeyStore::SCOPES, (array)Params::getParam('scopes')));
+                $scopes = array_values(array_intersect(KeyStore::SCOPES, Params::getParamArray('scopes')));
                 if ($name === '' || $scopes === array()) {
                     osc_add_flash_error_message(__('A key needs a name and at least one permission.', 'listing-import'), 'admin');
                     break;
