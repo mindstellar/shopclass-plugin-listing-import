@@ -54,6 +54,7 @@ return new class () implements MigrationInterface {
             // The rules for a new listing, and for one that leaves the feed.
             . " e_status ENUM('site','active','pending') NOT NULL DEFAULT 'site',"
             . ' b_respect_caps TINYINT(1) NOT NULL DEFAULT 1,'
+            . ' b_owners_from_records TINYINT(1) NOT NULL DEFAULT 0,'
             . " e_missing ENUM('keep','deactivate') NOT NULL DEFAULT 'deactivate',"
             . ' dt_created DATETIME NOT NULL,'
             . ' dt_last_run DATETIME NULL DEFAULT NULL,'

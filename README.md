@@ -147,6 +147,7 @@ Every error has the same shape:
 | 415 | `unsupported_media_type` | Send `Content-Type: application/json`. |
 | 422 | `not_imported`, `invalid_batch`, `id_mismatch` | The record is wrong. `fields` says where. |
 | 429 | `rate_limited` | Too many requests. Wait for `Retry-After` seconds. |
+| 500 | `not_deleted`, `server_error` | Something failed on the site. The site's error log says what. |
 
 Each key may send 60 requests a minute. Change it on the plugin's settings page. An address
 that sends a wrong key 20 times in 15 minutes is refused for a while.

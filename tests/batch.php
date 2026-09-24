@@ -44,7 +44,7 @@ function drain(Batch $batch): void
 harness_section('queueing a batch');
 
 $api   = fake_api();
-$key   = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_RUNS));
+$key   = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_RUNS), 1);
 $body  = json_encode(array('records' => array(rec('B1'), rec('B2'), rec('B3', 'REFUSE'))));
 $r     = $api->dispatch(new Request('POST', 'listings:batch', 'Bearer ' . $key['token'], '203.0.113.9', 'application/json', $body));
 pin('answers 202 at once with the run', array(202, 'queued', 3), array($r->status, $r->body['data']['status'] ?? null, $r->body['data']['records'] ?? null));
@@ -73,7 +73,7 @@ harness_section('the run page');
 $other = $GLOBALS['__keys']->create('Other', array(KeyStore::SCOPE_RUNS), 2);
 $GLOBALS['__store']->sources[2] = new Source(2, 'Feed');
 pin('a key of another source cannot see it', 404, $api->dispatch(new Request('GET', 'runs/' . $runId, 'Bearer ' . $other['token'], '203.0.113.9'))->status);
-$writer = $GLOBALS['__keys']->create('Writer', array(KeyStore::SCOPE_WRITE));
+$writer = $GLOBALS['__keys']->create('Writer', array(KeyStore::SCOPE_WRITE), 1);
 pin('a key without runs:read cannot either', 403, $api->dispatch(new Request('GET', 'runs/' . $runId, 'Bearer ' . $writer['token'], '203.0.113.9'))->status);
 pin('an unknown run is 404', 404, $api->dispatch(new Request('GET', 'runs/999', 'Bearer ' . $key['token'], '203.0.113.9'))->status);
 pin('a run id that is not a number is no endpoint', 404, $api->dispatch(new Request('GET', 'runs/abc', 'Bearer ' . $key['token'], '203.0.113.9'))->status);

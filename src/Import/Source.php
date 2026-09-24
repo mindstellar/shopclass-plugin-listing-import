@@ -84,7 +84,8 @@ final class Source
                 'owner_user_id' => (int)$row['fk_i_owner_id'],
                 'contact_name'  => (string)$row['s_contact_name'],
                 'contact_email' => (string)$row['s_contact_email'],
-            ), static fn ($value) => $value !== null && $value !== '' && $value !== 0),
+                'owners_from_records' => (int)$row['b_owners_from_records'] === 1,
+            ), static fn ($value) => $value !== null && $value !== '' && $value !== 0 && $value !== false),
             array(
                 'status'       => (string)$row['e_status'],
                 'respect_caps' => (int)$row['b_respect_caps'] === 1,

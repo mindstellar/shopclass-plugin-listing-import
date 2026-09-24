@@ -25,8 +25,8 @@ use mindstellar\listingimport\Auth\KeyStore;
 use mindstellar\listingimport\Http\Request;
 
 $api    = fake_api();
-$writer = $GLOBALS['__keys']->create('Writer', array(KeyStore::SCOPE_WRITE));
-$admin  = $GLOBALS['__keys']->create('Admin', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_DELETE));
+$writer = $GLOBALS['__keys']->create('Writer', array(KeyStore::SCOPE_WRITE), 1);
+$admin  = $GLOBALS['__keys']->create('Admin', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_DELETE), 1);
 $call   = static fn (string $method, string $path, array $key, ?array $body = null) => $api->dispatch(new Request(
     $method,
     $path,
@@ -65,6 +65,14 @@ pin('with it, the listing is deleted', array(200, true, false), array($r->status
 pin('and the id is forgotten', null, $GLOBALS['__store']->mapped(1, 'P1'));
 pin('a second delete is 404', 404, $call('DELETE', 'listings/P1', $admin)->status);
 pin('a PUT after it makes a new listing', 'created', $call('PUT', 'listings/P1', $writer, $record)->body['data']['status']);
+
+harness_section('a key stays on its own source');
+
+$GLOBALS['__store']->sources[2] = new \mindstellar\listingimport\Import\Source(2, 'Partner B');
+$gone = $GLOBALS['__keys']->create('Paused', array(KeyStore::SCOPE_WRITE), 3);
+pin('a key whose source is off or gone is refused, not moved to another source', array(409, 'no_source'), array($call('PUT', 'listings/P9', $gone, $record)->status, $call('PUT', 'listings/P9', $gone, $record)->body['error']['code']));
+$GLOBALS['__repo']->update((int)$gone['id'], array('fk_i_source_id' => null));
+pin('and so is a key that names no source', 409, $call('GET', 'listings/P1', $gone)->status);
 
 harness_section('the OpenAPI file');
 

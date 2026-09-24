@@ -65,7 +65,13 @@ final class AddressGuard
             return array('ok' => false, 'error' => 'Only the standard port is fetched.');
         }
 
-        $ips = filter_var($host, FILTER_VALIDATE_IP) !== false ? array($host) : ($this->resolve)($host);
+        $literal = filter_var($host, FILTER_VALIDATE_IP) !== false;
+        // cURL decodes a %-escaped host that parse_url keeps, so it would skip the pinned address.
+        if (!$literal && preg_match('/^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*\.?$/', $host) !== 1) {
+            return array('ok' => false, 'error' => 'The host name holds characters an address may not.');
+        }
+
+        $ips = $literal ? array($host) : ($this->resolve)($host);
         if ($ips === array()) {
             return array('ok' => false, 'error' => 'The host name does not resolve.');
         }
@@ -89,6 +95,10 @@ final class AddressGuard
     public static function isPublic(string $ip): bool
     {
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return false;
+        }
+        // Of IPv6, only global unicast reaches the internet; the rest is local, mapped or relayed.
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false && !self::inRange($ip, '2000::/3')) {
             return false;
         }
         foreach (self::BLOCKED as $cidr) {

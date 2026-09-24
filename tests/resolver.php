@@ -59,15 +59,26 @@ pin('the source default currency fills a gap', 'EUR', $r['fields']['currency']);
 $r = $resolver->resolve(array('price' => array('amount' => '650', 'currency' => 'USD')) + $base);
 pin('a currency the site does not use is an error', 'This site does not use USD.', $r['errors']['price.currency'] ?? null);
 
+$r = $resolver->resolve(array('fields' => array('colour' => array('red', 'blue'))) + $base);
+pin('a list for a custom field is dropped with a warning, as no field holds one', array(array(), 'No field here holds a list; dropped.'), array($r['meta'], $r['warnings']['fields.colour'] ?? null));
+
 harness_section('owner and contact');
 
-$r = $resolver->resolve(array('owner' => array('email' => 'sam@example.com'), 'contact' => array('email' => 'other@example.com')) + $base);
+$trusted = array('owners_from_records' => true);
+$r = $resolver->resolve(array('owner' => array('email' => 'sam@example.com'), 'contact' => array('email' => 'other@example.com')) + $base, $trusted);
 pin('an owner\'s address is the contact, which is how core attaches the listing', array('Sam Seller', 'sam@example.com'), array($r['fields']['contactName'], $r['fields']['contactEmail']));
-$r = $resolver->resolve(array('owner' => array('user_id' => 99), 'contact' => array('name' => 'Jo', 'email' => 'jo@example.com', 'show_email' => true)) + $base);
+$r = $resolver->resolve(array('owner' => array('user_id' => 99), 'contact' => array('name' => 'Jo', 'email' => 'jo@example.com', 'show_email' => true)) + $base, $trusted);
 pin('an unknown owner is a warning, and the record\'s contact stands', array('Jo', 'jo@example.com', 1), array($r['fields']['contactName'], $r['fields']['contactEmail'], $r['fields']['showEmail']));
 check('with a warning', isset($r['warnings']['owner']));
 $r = $resolver->resolve($base, array('owner_user_id' => 7));
 pin('a source default owner', 'sam@example.com', $r['fields']['contactEmail']);
+
+$r = $resolver->resolve(array('owner' => array('user_id' => 7)) + $base);
+pin('a source that may not choose accounts ignores the record\'s owner', array('site@example.com', 'This source may not choose accounts; ignored.'), array($r['fields']['contactEmail'], $r['warnings']['owner'] ?? null));
+$r = $resolver->resolve(array('contact' => array('email' => 'sam@example.com')) + $base, array('contact_email' => 'partner@example.com'));
+pin('nor can it reach an account through the contact address', array('partner@example.com', true), array($r['fields']['contactEmail'], isset($r['warnings']['contact.email'])));
+$r = $resolver->resolve(array('contact' => array('email' => 'jo@example.com')) + $base);
+pin('an address with no account stays the contact', 'jo@example.com', $r['fields']['contactEmail']);
 $r = $resolver->resolve($base, array('contact_email' => 'feeds@partner.example'));
 pin('a source default contact address beats the site address', 'feeds@partner.example', $r['fields']['contactEmail']);
 

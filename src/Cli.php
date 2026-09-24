@@ -132,7 +132,11 @@ final class Cli
         if ($scopes === array()) {
             return self::fail('Give at least one of: ' . implode(', ', KeyStore::SCOPES) . "\n");
         }
-        $made = Keys::store()->create($name, $scopes, isset($args['source']) ? (int)$args['source'] : null);
+        $source = Keys::pushSource((int)($args['source'] ?? 0));
+        if ($source === null) {
+            return self::fail("Add a push source first; a key imports into one.\n");
+        }
+        $made = Keys::store()->create($name, $scopes, $source);
         echo "Key made. It is shown once; keep it safe.\n\n  " . $made['token'] . "\n\n";
         echo 'Permissions: ' . implode(', ', $scopes) . "\n";
 

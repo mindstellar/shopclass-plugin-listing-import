@@ -82,6 +82,8 @@ pin('an item with no category leaves it to the source default', false, isset($re
 
 $xxe = '<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]><rss><channel><item><title>&x;</title><guid>1</guid></item></channel></rss>';
 pin('a feed declaring an entity is refused before parsing', 'The feed declares a DOCTYPE or an entity; refused.', FeedReader::read(feed('x.xml', $xxe), 'shopclass-rss')['error']);
+$padded = '<?xml version="1.0"?>' . "\n<!--" . str_repeat(' ', 5000) . "-->\n" . '<!DOCTYPE rss [<!ENTITY x "boom">]><rss><channel><item><title>&x;</title><guid>1</guid></item></channel></rss>';
+pin('and so is one that hides it past the first 4 KB', 'The feed declares a DOCTYPE or an entity; refused.', FeedReader::read(feed('p.xml', $padded), 'shopclass-rss')['error']);
 pin('a file that is not XML says so', 'The feed is not XML.', FeedReader::read(feed('y.xml', 'not xml at all'), 'shopclass-rss')['error']);
 
 harness_section('a feed across three fetches');

@@ -103,7 +103,13 @@ final class Api
             Plugin::batch(),
             new CoreListings()
         );
-        $api->dispatch(Request::fromGlobals())->send();
+        try {
+            $response = $api->dispatch(Request::fromGlobals());
+        } catch (\Throwable $e) {
+            error_log('listing-import: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+            $response = Response::error(500, 'server_error', 'The request could not be handled.');
+        }
+        $response->send();
     }
 
     /**
@@ -126,14 +132,17 @@ final class Api
 
         [$handler, $scope] = $route;
         if ($scope !== null) {
-            if ($this->failures->exceeded()) {
-                return Response::error(429, 'rate_limited', 'Too many failed attempts from this address. Try again later.');
-            }
+            // A locked-out address still gets through with a good key: behind a proxy every
+            // client shares one address, and a stranger's bad guesses must not stop them.
             $key = $this->keys->authenticate($request->authorization, $scope, $request->ip);
             if ($key instanceof Response) {
-                if ($key->status === 401) {
-                    $this->failures->record();
+                if ($key->status !== 401) {
+                    return $key;
                 }
+                if ($this->failures->exceeded()) {
+                    return Response::error(429, 'rate_limited', 'Too many failed attempts from this address. Try again later.');
+                }
+                $this->failures->record();
 
                 return $key;
             }
@@ -370,7 +379,7 @@ final class Api
      */
     private function source(array $key)
     {
-        $source = $this->store->source($key['fk_i_source_id'] === null ? null : (int)$key['fk_i_source_id']);
+        $source = $this->store->source((int)$key['fk_i_source_id']);
 
         return $source ?? Response::error(409, 'no_source', 'This key imports into a source that is missing or switched off.');
     }

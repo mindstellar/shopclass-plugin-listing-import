@@ -43,7 +43,7 @@ $valid = '{"external_id":"A1","title":"Blue bike","description":"A bike.","categ
 harness_section('making a key');
 
 $api  = fake_api();
-$made = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, 'bogus:scope'));
+$made = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, 'bogus:scope'), 1);
 $row  = $GLOBALS['__repo']->find($made['id']);
 check('the token is the key id, a dot and a 64-character secret', (bool)preg_match('/^[0-9A-Za-z]{16}\.[0-9a-f]{64}$/', $made['token']));
 check('the secret itself is not stored', strpos(json_encode($row), explode('.', $made['token'])[1]) === false);
@@ -69,23 +69,23 @@ foreach (array(
 }
 
 $api     = fake_api();
-$revoked = $GLOBALS['__keys']->create('Old', array(KeyStore::SCOPE_WRITE));
+$revoked = $GLOBALS['__keys']->create('Old', array(KeyStore::SCOPE_WRITE), 1);
 $GLOBALS['__keys']->revoke($revoked['id']);
 pin('a revoked key is 401', 401, $api->dispatch(post($revoked['token'], $valid))->status);
 
-$expired = $GLOBALS['__keys']->create('Temp', array(KeyStore::SCOPE_WRITE), null, date('Y-m-d H:i:s', $GLOBALS['__now'] - 1));
+$expired = $GLOBALS['__keys']->create('Temp', array(KeyStore::SCOPE_WRITE), 1, date('Y-m-d H:i:s', $GLOBALS['__now'] - 1));
 pin('an expired key is 401', 401, $api->dispatch(post($expired['token'], $valid))->status);
-$later = $GLOBALS['__keys']->create('Later', array(KeyStore::SCOPE_WRITE), null, date('Y-m-d H:i:s', $GLOBALS['__now'] + 60));
+$later = $GLOBALS['__keys']->create('Later', array(KeyStore::SCOPE_WRITE), 1, date('Y-m-d H:i:s', $GLOBALS['__now'] + 60));
 pin('a key that expires later still works', 'ok', ok($api->dispatch(post($later['token'], $valid))->status));
 
-$readOnly = $GLOBALS['__keys']->create('Reader', array(KeyStore::SCOPE_RUNS));
+$readOnly = $GLOBALS['__keys']->create('Reader', array(KeyStore::SCOPE_RUNS), 1);
 $r        = $api->dispatch(post($readOnly['token'], $valid));
 pin('a key without the scope is 403, not 401', array(403, 'forbidden'), array($r->status, $r->body['error']['code'] ?? null));
 
 harness_section('limits');
 
 $api  = fake_api(3);
-$made = $GLOBALS['__keys']->create('Busy', array(KeyStore::SCOPE_WRITE));
+$made = $GLOBALS['__keys']->create('Busy', array(KeyStore::SCOPE_WRITE), 1);
 $codes = array();
 for ($i = 0; $i < 4; $i++) {
     $codes[] = ok($api->dispatch(post($made['token'], $valid))->status);
@@ -97,18 +97,22 @@ $GLOBALS['__now'] += 60;
 pin('the next minute starts a new count', 'ok', ok($api->dispatch(post($made['token'], $valid))->status));
 
 $api  = fake_api();
-$good = $GLOBALS['__keys']->create('Good', array(KeyStore::SCOPE_WRITE));
+$good = $GLOBALS['__keys']->create('Good', array(KeyStore::SCOPE_WRITE), 1);
 for ($i = 0; $i < 20; $i++) {
     $api->dispatch(post('ZZZZZZZZZZZZZZZZ.' . str_repeat('a', 64), $valid));
 }
-$r = $api->dispatch(post($good['token'], $valid));
-pin('after 20 failures an address is refused, even with a good key', array(429, 'rate_limited'), array($r->status, $r->body['error']['code'] ?? null));
+$r = $api->dispatch(post('ZZZZZZZZZZZZZZZZ.' . str_repeat('a', 64), $valid));
+pin('after 20 failures a bad key from that address is refused', array(429, 'rate_limited'), array($r->status, $r->body['error']['code'] ?? null));
+pin('but a good key from the same address still works, as behind a shared proxy', 'ok', ok($api->dispatch(post($good['token'], $valid))->status));
+pin('and neither counts again', 20, $GLOBALS['__failures']->count);
+$reader = $GLOBALS['__keys']->create('Reader', array(KeyStore::SCOPE_RUNS), 1);
+$api->dispatch(post($reader['token'], $valid));
 pin('a 403 does not count as a failure', 20, $GLOBALS['__failures']->count);
 
 harness_section('rotating a key');
 
 $api     = fake_api();
-$old     = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_DELETE));
+$old     = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_DELETE), 1);
 $new     = $GLOBALS['__keys']->rotate($old['id']);
 $newRow  = $GLOBALS['__repo']->find($new['id']);
 check('gives a different token', $new['token'] !== $old['token']);
@@ -127,7 +131,7 @@ pin('rotating a key that does not exist gives nothing', null, $GLOBALS['__keys']
 harness_section('the body');
 
 $api  = fake_api();
-$made = $GLOBALS['__keys']->create('Body', array(KeyStore::SCOPE_WRITE));
+$made = $GLOBALS['__keys']->create('Body', array(KeyStore::SCOPE_WRITE), 1);
 $r    = $api->dispatch(new Request('POST', 'listings', 'Bearer ' . $made['token'], '203.0.113.9', 'application/json', null));
 pin('a body over 1 MB is 413', 413, $r->status);
 pin('a body that is not JSON by type is 415', 415, $api->dispatch(post($made['token'], $valid, 'text/plain'))->status);

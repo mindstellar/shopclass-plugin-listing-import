@@ -60,7 +60,7 @@ final class KeyStore
      *
      * @return array{id: int, key_id: string, token: string} the token is never shown again
      */
-    public function create(string $name, array $scopes, ?int $sourceId = null, ?string $expires = null): array
+    public function create(string $name, array $scopes, int $sourceId, ?string $expires = null): array
     {
         $keyId  = $this->newKeyId();
         $secret = bin2hex(random_bytes(32));
@@ -96,7 +96,7 @@ final class KeyStore
         return $this->create(
             (string)$old['s_name'],
             explode(' ', (string)$old['s_scopes']),
-            $old['fk_i_source_id'] === null ? null : (int)$old['fk_i_source_id'],
+            (int)$old['fk_i_source_id'],
             $old['dt_expires'] === null ? null : (string)$old['dt_expires']
         );
     }

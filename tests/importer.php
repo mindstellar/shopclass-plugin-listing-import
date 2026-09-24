@@ -98,6 +98,7 @@ harness_section('listing limits');
 
 [$importer, $source] = fresh();
 $GLOBALS['__listings']->limited = array('sam@example.com');
+$source->defaults['owners_from_records'] = true;
 $owned = array('owner' => array('email' => 'sam@example.com')) + $record;
 $r     = $importer->import($source, $owned, 1);
 pin('an owner at their limit gets no new listing', array('failed', array('owner' => 'The owner has reached their listing limit.')), array($r['status'], $r['errors']));

@@ -208,12 +208,6 @@
                 },
                 {
                   "type": "boolean"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
                 }
               ]
             }
@@ -251,7 +245,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "description": "unauthorized, forbidden, not_found, method_not_allowed, rate_limited, too_large, unsupported_media_type, invalid_json, not_imported, not_deleted, invalid_batch, too_many_records, id_mismatch, no_source"
+                "description": "unauthorized, forbidden, not_found, method_not_allowed, rate_limited, too_large, unsupported_media_type, invalid_json, not_imported, not_deleted, invalid_batch, too_many_records, id_mismatch, no_source, server_error"
               },
               "message": {
                 "type": "string"

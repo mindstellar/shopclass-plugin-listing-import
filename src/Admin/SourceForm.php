@@ -118,6 +118,9 @@ final class SourceForm
             ->checkbox('b_respect_caps', __('Apply the owner\'s listing limit', 'listing-import'))
                 ->rowLabel(__('Limits', 'listing-import'))
                 ->default(1)
+            ->checkbox('b_owners_from_records', __('Records may put listings in any account', 'listing-import'), __('Only for a source you trust fully. Off: a record\'s owner is ignored, and a contact address that has an account here is replaced by the source\'s.', 'listing-import'))
+                ->rowLabel(__('Accounts', 'listing-import'))
+                ->default(0)
 
             ->hidden('dt_created')
                 ->writeOnly()

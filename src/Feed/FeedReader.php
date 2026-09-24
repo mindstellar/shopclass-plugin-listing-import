@@ -134,6 +134,12 @@ final class FeedReader
         $records = array();
         $isXml   = false;
         while (@$xml->read()) {
+            // The check above reads only the start; a DOCTYPE further in is caught here.
+            if ($xml->nodeType === XMLReader::DOC_TYPE) {
+                $xml->close();
+
+                return array('records' => array(), 'error' => 'The feed declares a DOCTYPE or an entity; refused.');
+            }
             $isXml = $isXml || $xml->nodeType === XMLReader::ELEMENT;
             if ($xml->nodeType !== XMLReader::ELEMENT || $xml->localName !== 'item') {
                 continue;

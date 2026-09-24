@@ -44,6 +44,25 @@ final class Keys
     }
 
     /**
+     * The push source a new key imports into: the one chosen, or else the first. A key always
+     * names its source, so it never drifts to another one when sources change.
+     *
+     * @param int $chosen
+     *
+     * @return int|null null when the site has no push source
+     */
+    public static function pushSource(int $chosen): ?int
+    {
+        $id = osc_db_scalar(
+            'SELECT pk_i_id FROM ' . DB_TABLE_PREFIX . "t_listing_import_source WHERE e_kind = 'push'"
+            . ' ORDER BY pk_i_id = ? DESC, pk_i_id LIMIT 1',
+            array($chosen)
+        );
+
+        return $id === null ? null : (int)$id;
+    }
+
+    /**
      * Act on a post to the screen, then send the admin back to it.
      *
      * @return void
@@ -71,12 +90,12 @@ final class Keys
                     osc_add_flash_error_message(__('A key needs a name and at least one permission.', 'listing-import'), 'admin');
                     break;
                 }
-                $source = Params::getParamInt('source');
-                $isPush = osc_db_scalar(
-                    'SELECT 1 FROM ' . DB_TABLE_PREFIX . "t_listing_import_source WHERE pk_i_id = ? AND e_kind = 'push'",
-                    array($source)
-                ) !== null;
-                self::showOnce($store->create($name, $scopes, $isPush ? $source : null));
+                $source = self::pushSource(Params::getParamInt('source'));
+                if ($source === null) {
+                    osc_add_flash_error_message(__('Add a push source first; a key imports into one.', 'listing-import'), 'admin');
+                    break;
+                }
+                self::showOnce($store->create($name, $scopes, $source));
                 break;
             case 'rotate':
                 $made = $store->rotate(Params::getParamInt('id'));

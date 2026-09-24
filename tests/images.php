@@ -63,6 +63,10 @@ foreach (array(
     'http://[::ffff:127.0.0.1]/admin'        => 'The host is on a private or reserved network.',
     'http://100.64.0.1/a.jpg'                => 'The host is on a private or reserved network.',
     'http://0.0.0.0/a.jpg'                   => 'The host is on a private or reserved network.',
+    'http://[::7f00:1]/a.jpg'                => 'The host is on a private or reserved network.',
+    'http://[fec0::1]/a.jpg'                 => 'The host is on a private or reserved network.',
+    'http://[64:ff9b:1::a00:1]/a.jpg'        => 'The host is on a private or reserved network.',
+    'http://exa%6dple.com/a.jpg'             => 'The host name holds characters an address may not.',
     'https://nowhere.example/a.jpg'          => 'The host name does not resolve.',
 ) as $url => $reason) {
     pin($url, $reason, $guard->check($url)['error'] ?? 'allowed');
