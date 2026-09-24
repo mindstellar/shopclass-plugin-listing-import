@@ -58,8 +58,12 @@ final class CurlTransport implements Transport
         $status   = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
         $location = (string)curl_getinfo($curl, CURLINFO_REDIRECT_URL);
         $errno    = curl_errno($curl);
+        $linked   = (float)curl_getinfo($curl, CURLINFO_CONNECT_TIME) > 0;
         fclose($out);
 
+        if ($ok === false && !$linked && in_array($errno, array(CURLE_COULDNT_CONNECT, CURLE_OPERATION_TIMEDOUT), true)) {
+            return array('error' => 'The server could not be reached.', 'unreachable' => true);
+        }
         if ($ok === false) {
             if (in_array($errno, array(CURLE_FILESIZE_EXCEEDED, CURLE_ABORTED_BY_CALLBACK), true)) {
                 return array('error' => 'The file is larger than the limit.');

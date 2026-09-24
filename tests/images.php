@@ -29,6 +29,7 @@ $dns = array(
     'v6local.example'   => array('fd00::1'),
     'metadata.example'  => array('169.254.169.254'),
     'dual.example'      => array('2606:2800:220:1:248:1893:25c8:1946', '93.184.216.34'),
+    'multi.example'     => array('93.184.216.1', '93.184.216.2', '93.184.216.3', '93.184.216.4'),
 );
 $guard = new AddressGuard(static fn (string $host) => $dns[$host] ?? array());
 
@@ -45,6 +46,7 @@ foreach (array(
 }
 pin('the approved IP is handed back for pinning', '93.184.216.34', $guard->check('https://cdn.example/a.jpg')['ip']);
 pin('IPv4 is preferred when a host has both', '93.184.216.34', $guard->check('https://dual.example/a.jpg')['ip']);
+pin('and every checked address is handed back, IPv4 first', array('93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'), $guard->check('https://dual.example/a.jpg')['ips']);
 
 harness_section('addresses that are not');
 
@@ -79,10 +81,14 @@ final class ScriptedTransport implements Transport
 {
     public array $pages = array();
     public array $asked = array();
+    public array $down  = array();
 
     public function get(string $url, string $ip, string $file, int $maxBytes): array
     {
         $this->asked[] = $url . ' @' . $ip;
+        if (in_array($ip, $this->down, true)) {
+            return array('error' => 'The server could not be reached.', 'unreachable' => true);
+        }
         [$status, $location, $body] = $this->pages[$url] ?? array(404, '', '');
         if (strlen($body) > $maxBytes) {
             return array('error' => 'The file is larger than the limit.');
@@ -126,8 +132,19 @@ pin('an image over the cap is refused', 'The file is larger than the limit.', $g
 
 pin('a missing image says so', 'The server answered 404.', $get->fetch('https://cdn.example/none.png')['error'] ?? null);
 
+$web->pages['https://multi.example/a.png'] = array(200, '', $png);
+$web->down  = array('93.184.216.1');
+$web->asked = array();
+pin('a dead address is skipped for the host\'s next one', true, $get->fetch('https://multi.example/a.png')['ok']);
+pin('which was checked like the first', array('https://multi.example/a.png @93.184.216.1', 'https://multi.example/a.png @93.184.216.2'), $web->asked);
+$web->down  = array('93.184.216.1', '93.184.216.2', '93.184.216.3');
+$web->asked = array();
+pin('after three dead addresses it gives up', 'The server could not be reached.', $get->fetch('https://multi.example/a.png')['error'] ?? null);
+pin('without trying a fourth', 3, count($web->asked));
+$web->down = array();
+
 $left = glob($tmp . 'import_*');
-pin('only the two accepted images are left in the temp folder', 2, count($left));
+pin('only the three accepted images are left in the temp folder', 3, count($left));
 array_map('unlink', $left);
 @rmdir($tmp);
 

@@ -25,6 +25,9 @@ final class Fetcher implements ImageSource, Downloader
 
     public const MAX_REDIRECTS = 3;
 
+    /** Addresses of one host tried before giving up; each may take the connect timeout. */
+    public const MAX_ADDRESSES = 3;
+
     private const TYPES = array(IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_WEBP);
 
     private AddressGuard $guard;
@@ -88,7 +91,13 @@ final class Fetcher implements ImageSource, Downloader
             if (!$check['ok']) {
                 return array('ok' => false, 'error' => $check['error']);
             }
-            $got = $this->transport->get($url, $check['ip'], $file, $this->maxBytes);
+            // A host with one dead address among several still answers on the others.
+            foreach (array_slice($check['ips'] ?? array($check['ip']), 0, self::MAX_ADDRESSES) as $ip) {
+                $got = $this->transport->get($url, $ip, $file, $this->maxBytes);
+                if (empty($got['unreachable'])) {
+                    break;
+                }
+            }
             if (isset($got['error'])) {
                 @unlink($file);
 

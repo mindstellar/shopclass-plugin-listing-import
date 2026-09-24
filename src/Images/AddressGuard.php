@@ -47,7 +47,7 @@ final class AddressGuard
     /**
      * @param string $url
      *
-     * @return array{ok: bool, error?: string, host?: string, port?: int, ip?: string}
+     * @return array{ok: bool, error?: string, host?: string, port?: int, ip?: string, ips?: array<int,string>}
      */
     public function check(string $url): array
     {
@@ -81,10 +81,11 @@ final class AddressGuard
             }
         }
 
-        // Prefer IPv4: many servers can reach the internet over IPv4 only.
-        $v4 = array_values(array_filter($ips, static fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false));
+        // IPv4 first: many servers can reach the internet over IPv4 only.
+        $isV4 = static fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        $ips  = array_values(array_merge(array_filter($ips, $isV4), array_filter($ips, static fn ($ip) => !$isV4($ip))));
 
-        return array('ok' => true, 'host' => $host, 'port' => $port, 'ip' => $v4[0] ?? $ips[0]);
+        return array('ok' => true, 'host' => $host, 'port' => $port, 'ip' => $ips[0], 'ips' => $ips);
     }
 
     /**

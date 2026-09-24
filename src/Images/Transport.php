@@ -22,7 +22,8 @@ interface Transport
      * @param string $file     where the body is written
      * @param int    $maxBytes stop past this many bytes
      *
-     * @return array{status?: int, location?: string, error?: string}
+     * @return array{status?: int, location?: string, error?: string, unreachable?: bool} unreachable when no
+     *         connection was made, so another address of the host may be tried
      */
     public function get(string $url, string $ip, string $file, int $maxBytes): array;
 }

@@ -11,6 +11,7 @@
 - Imported listings go through core's own listing save, so validation, spam checks, expiry and custom fields apply. The site's moderation and listing limits apply too.
 - A record may put its listing in a site account only when its source allows it; off by default.
 - Images: each address is downloaded only if every IP its host resolves to is public, on the normal port, over http or https, redirects included. At most 8 MB, and only JPEG, PNG, GIF or WebP.
+- A host with a dead address is tried at up to three of its checked addresses, for images and feeds.
 - An update adds only images the listing does not already have, compared by content, not by address. An image that fails is a warning; the listing is still imported.
 - Downloaded images nothing took are swept from the temp folder after two hours.
 - `POST /api/v1/listings:batch` takes up to 200 records and answers at once; each record becomes one job in core's background queue, so core retries it and **Tools → Background jobs** shows it.
