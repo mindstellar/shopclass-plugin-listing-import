@@ -26,6 +26,7 @@ Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issu
 use mindstellar\listingimport\Admin\Keys;
 use mindstellar\listingimport\Admin\Menu;
 use mindstellar\listingimport\Admin\Sources;
+use mindstellar\listingimport\Admin\Upload;
 use mindstellar\listingimport\Api;
 use mindstellar\listingimport\Cli;
 use mindstellar\listingimport\Import\DbStore;
@@ -88,6 +89,10 @@ osc_add_hook('init_admin', array(Sources::class, 'handlePost'));
 osc_add_route(Keys::ROUTE, 'listing-import/keys', 'listing-import/keys', osc_plugin_folder(__FILE__) . 'admin/keys.php');
 osc_add_hook('init_admin', array(Keys::class, 'handlePost'));
 osc_add_route(Menu::HELP_ROUTE, 'listing-import/help', 'listing-import/help', osc_plugin_folder(__FILE__) . 'admin/help.php');
+
+// Importing a file an admin uploads.
+osc_add_route(Upload::ROUTE, 'listing-import/upload', 'listing-import/upload', osc_plugin_folder(__FILE__) . 'admin/upload.php');
+osc_add_hook('init_admin', array(Upload::class, 'handlePost'));
 
 // One group under Plugins, and the header core draws around each screen.
 osc_add_hook('admin_menu_init', array(Menu::class, 'register'));

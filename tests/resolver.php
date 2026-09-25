@@ -32,6 +32,7 @@ harness_section('categories');
 
 pin('by path', 3, $resolver->resolve(array('category' => 'Vehicles > Cars') + $base)['fields']['catId']);
 pin('by id', 1, $resolver->resolve(array('category' => array('id' => 1)) + $base)['fields']['catId']);
+pin('and by id written as text, as a CSV cell is', 1, $resolver->resolve(array('category' => '1') + $base)['fields']['catId']);
 pin('by name', 3, $resolver->resolve(array('category' => array('label' => 'Cars')) + $base)['fields']['catId']);
 $r = $resolver->resolve(array('category' => 'Boats') + $base);
 pin('an unknown one with no default is an error', 'No such category here, and the source has no default.', $r['errors']['category'] ?? null);

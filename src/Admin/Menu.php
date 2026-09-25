@@ -31,6 +31,7 @@ final class Menu
         osc_add_admin_submenu_divider('plugins', __('Listing import', 'listing-import'), 'listing-import', 'administrator');
         foreach (array(
             'listing-import-sources'  => array(__('Sources', 'listing-import'), osc_route_admin_url(Sources::ROUTE)),
+            'listing-import-upload'   => array(__('Import a file', 'listing-import'), osc_route_admin_url(Upload::ROUTE)),
             'listing-import-keys'     => array(__('API keys', 'listing-import'), osc_route_admin_url(Keys::ROUTE)),
             'listing-import-settings' => array(__('Settings', 'listing-import'), osc_settings_page_url(Plugin::PAGE)),
             'listing-import-help'     => array(__('Help', 'listing-import'), osc_route_admin_url(self::HELP_ROUTE)),
@@ -53,6 +54,7 @@ final class Menu
             'help'    => self::help(__('A push source takes listings a partner sends with an API key. A pull source fetches a JSON, CSV or RSS feed on a schedule. Imported listings follow the site\'s own rules.', 'listing-import')),
             'actions' => array(
                 array('icon' => 'bi-plus-circle-fill', 'url' => osc_route_admin_url(Sources::EDIT_ROUTE), 'title' => __('Add source', 'listing-import')),
+                array('icon' => 'bi-upload', 'url' => osc_route_admin_url(Upload::ROUTE), 'title' => __('Import a file', 'listing-import')),
                 $settings,
             ),
         ));
@@ -71,6 +73,10 @@ final class Menu
                 array('icon' => 'bi-plus-circle-fill', 'url' => '#li-add-key', 'title' => __('Add key', 'listing-import')),
                 $settings,
             ),
+        ));
+        osc_admin_plugin_page(Upload::ROUTE, array(
+            'title' => __('Import a file', 'listing-import'),
+            'help'  => self::help(__('Upload a file of records and see how each would be imported. Nothing changes until you import. Listings the file leaves out are not touched.', 'listing-import')),
         ));
         osc_admin_plugin_page(self::HELP_ROUTE, array(
             'title' => __('Listing import help', 'listing-import'),

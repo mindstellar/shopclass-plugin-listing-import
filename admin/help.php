@@ -88,6 +88,11 @@ osc_admin_form_section(__('Fetch a feed', 'listing-import'), array('spaced' => t
     <p><?php _e('Preview shows what a fetch would import, without changing anything. A listing whose record leaves the feed is deactivated, not deleted, and comes back with its record. If most records in a fetch fail, nothing is deactivated.', 'listing-import'); ?></p>
 <?php
 
+osc_admin_form_section(__('Import a file', 'listing-import'), array('spaced' => true));
+?>
+    <p><?php _e('Under Import a file, upload a JSON, NDJSON, CSV or RSS file and choose the source it belongs to. You see how each record would be imported before anything changes. Listings the file leaves out are not touched.', 'listing-import'); ?></p>
+<?php
+
 osc_admin_form_section(__('Command line', 'listing-import'), array('spaced' => true));
 $code("php oc-cli.php import:run --file=records.json --dry-run\nphp oc-cli.php import:run --file=records.json\nphp oc-cli.php import:status\nphp oc-cli.php import:key:create --name=\"Partner site\"");
 ?>

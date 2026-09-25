@@ -173,6 +173,12 @@ fetch at once.
 A listing whose record leaves the feed is deactivated, not deleted. It comes back when the
 record returns. If most records in a fetch fail, nothing is deactivated.
 
+## Import a file
+
+**Plugins → Listing import → Import a file.** Upload a JSON, NDJSON, CSV or RSS file, up to
+20 MB, and choose its source. The preview shows how each record would be imported. Nothing
+changes until you click **Import**. Listings the file leaves out are not touched.
+
 ## Command line
 
 ```bash

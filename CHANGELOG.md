@@ -23,6 +23,7 @@
 - A listing whose record leaves its feed is deactivated, never deleted, and comes back when the record returns. A feed where most records fail deactivates nothing.
 - Sources are managed under **Plugins → Listing import → Sources**: a list, an editor core draws from the plugin's declaration, a preview of what a feed would import, and Fetch now.
 - A Help screen and a **?** help on every screen; the screens follow the admin's own layout.
+- Import a file: upload a JSON, NDJSON, CSV or RSS file, preview it, then import it into a source.
 - A feed address must pass the same public-address check as images, and a feed declaring an XML entity is refused before it is parsed.
 - Import log lines older than the retention setting are deleted once a day.
 - Every request is a run with its own log lines, and a record that fails names each problem by its field.

@@ -10,9 +10,9 @@
  */
 
 use mindstellar\listingimport\Admin\Guard;
+use mindstellar\listingimport\Admin\PreviewTable;
 use mindstellar\listingimport\Admin\Sources;
 use mindstellar\listingimport\Import\DbStore;
-use mindstellar\listingimport\Import\Importer;
 use mindstellar\listingimport\Plugin;
 
 if (!defined('ABS_PATH')) {
@@ -45,50 +45,4 @@ if ($read['error'] !== null) {
 
     return;
 }
-$importer = Plugin::importer();
-$words    = array(
-    Importer::CREATED   => array('active', __('New', 'listing-import')),
-    Importer::UPDATED   => array('pending', __('Changed', 'listing-import')),
-    Importer::UNCHANGED => array('inactive', __('Same', 'listing-import')),
-    Importer::FAILED    => array('error', __('Not importable', 'listing-import')),
-);
-?>
-<div class="table-contains-actions osc-table-stack">
-    <table class="table">
-        <thead>
-        <tr>
-            <th><?php _e('Record', 'listing-import'); ?></th>
-            <th><?php _e('Would be', 'listing-import'); ?></th>
-            <th><?php _e('Category', 'listing-import'); ?></th>
-            <th><?php _e('Place', 'listing-import'); ?></th>
-            <th><?php _e('Price', 'listing-import'); ?></th>
-            <th><?php _e('Notes', 'listing-import'); ?></th>
-        </tr>
-        </thead>
-        <tbody>
-        <?php foreach (array_slice($read['records'], 0, 20) as $record) {
-            $result = $importer->import($source, $record, 0, true);
-            $fields = $result['fields'] ?? array();
-            $title  = is_array($record['title'] ?? null) ? (string)reset($record['title']) : (string)($record['title'] ?? '');
-            $notes  = $result['errors'] + $result['warnings'];
-            [$state, $word] = $words[$result['status']]; ?>
-            <tr>
-                <td data-col-name="<?php echo osc_esc_html(__('Record', 'listing-import')); ?>"><?php echo osc_esc_html($title); ?><br><small class="text-muted text-break"><?php echo osc_esc_html($result['external_id']); ?></small></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Would be', 'listing-import')); ?>"><?php osc_admin_status($state, $word); ?></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Category', 'listing-import')); ?>"><?php
-                    $category = empty($fields['catId']) ? array() : (array)Category::newInstance()->findByPrimaryKey((int)$fields['catId']);
-                    echo osc_esc_html((string)($category['s_name'] ?? '')); ?></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Place', 'listing-import')); ?>"><?php echo osc_esc_html(implode(', ', array_filter(array($fields['city'] ?? '', $fields['region'] ?? '', $fields['countryId'] ?? '')))); ?></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Price', 'listing-import')); ?>"><?php echo osc_esc_html(trim(($fields['price'] ?? '') . ' ' . ($fields['currency'] ?? ''))); ?></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Notes', 'listing-import')); ?>"><small><?php
-                    echo implode('<br>', array_map(
-                        static fn ($field, $message) => osc_esc_html($field . ': ' . $message),
-                        array_keys($notes),
-                        $notes
-                    )); ?></small></td>
-            </tr>
-        <?php } ?>
-        </tbody>
-    </table>
-</div>
-<?php
+PreviewTable::render($source, $read['records']);

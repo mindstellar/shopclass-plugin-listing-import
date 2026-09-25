@@ -196,7 +196,7 @@ final class Resolver
     }
 
     /**
-     * @param mixed $spec an id, a string, or array with one of id, slug, path, label
+     * @param mixed $spec an id (a number, or digits as text), a string, or array with one of id, slug, path, label
      *
      * @return int|null
      */
@@ -209,8 +209,10 @@ final class Resolver
             if (strpos($spec, '>') !== false) {
                 return $this->path($spec);
             }
+            // A CSV cell is always text, so a number there is still an id.
+            $byId = ctype_digit($spec) ? $this->lookups->categoryById((int)$spec) : null;
 
-            return $this->lookups->categoryBySlug($spec) ?? $this->lookups->categoryByName($spec);
+            return $byId ?? $this->lookups->categoryBySlug($spec) ?? $this->lookups->categoryByName($spec);
         }
         if (!is_array($spec)) {
             return null;

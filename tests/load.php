@@ -89,10 +89,11 @@ pin('one menu group, a post handler per screen group, and a declared header per 
     array(
         array(\mindstellar\listingimport\Admin\Sources::class, 'handlePost'),
         array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost'),
+        array(\mindstellar\listingimport\Admin\Upload::class, 'handlePost'),
         array(\mindstellar\listingimport\Admin\Menu::class, 'pages'),
     ),
 ), array($GLOBALS['__hooks']['admin_menu_init'] ?? null, $GLOBALS['__hooks']['init_admin'] ?? null));
-pin('the help screen is an admin route file', 'listing-import/admin/help.php', $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Menu::HELP_ROUTE][2] ?? null);
+pin('the help and upload screens are admin route files', array('listing-import/admin/help.php', 'listing-import/admin/upload.php'), array($GLOBALS['__routes'][\mindstellar\listingimport\Admin\Menu::HELP_ROUTE][2] ?? null, $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Upload::ROUTE][2] ?? null));
 pin('the route hook answers with Api::handle', array(array(Api::class, 'handle')), $GLOBALS['__hooks'][Plugin::ROUTE] ?? null);
 
 harness_section('migrations');
