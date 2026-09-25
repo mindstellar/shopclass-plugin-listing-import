@@ -30,6 +30,10 @@
     {
       "src": "assets/screenshot-4.png",
       "caption": "API keys with their own permissions"
+    },
+    {
+      "src": "assets/screenshot-5.png",
+      "caption": "A help screen with the API guide"
     }
   ],
   "license": "GPL-3.0-or-later",

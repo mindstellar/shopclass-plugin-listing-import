@@ -10,8 +10,8 @@ moderation, spam checks, listing limits and expiry.
 |---|---|
 | ![A feed source](assets/screenshot-2.png) | ![Feed preview](assets/screenshot-3.png) |
 | A feed source | Preview a feed before it changes anything |
-| ![API keys](assets/screenshot-4.png) | |
-| API keys with their own permissions | |
+| ![API keys](assets/screenshot-4.png) | ![Help](assets/screenshot-5.png) |
+| API keys with their own permissions | A help screen with the API guide |
 
 ## Requirements
 
@@ -47,7 +47,7 @@ Both answer:
 
 ## Make a key
 
-**Plugins → Listing import: API keys → New key.** Pick its permissions:
+**Plugins → Listing import → API keys → Add a key.** Pick its permissions:
 
 | Permission | Lets the key |
 |---|---|
@@ -154,7 +154,7 @@ The site's own rules apply to every listing: moderation, spam checks, listing li
 
 ## Pull a feed
 
-**Plugins → Listing import: sources → New source.** Give the feed address, its format, and how
+**Plugins → Listing import → Sources**, then the **+** button. Give the feed address, its format, and how
 often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS. A JSON feed
 may be a plain list or an object holding one list, such as `{"products": [...]}`.
 

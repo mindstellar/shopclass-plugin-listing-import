@@ -3,7 +3,7 @@
 ## 0.1.0
 
 ### New
-- API keys: an admin makes, rotates and revokes them under **Plugins → Listing import: API keys**. The secret is shown once and stored only as a hash.
+- API keys: an admin makes, rotates and revokes them under **Plugins → Listing import → API keys**. The secret is shown once and stored only as a hash.
 - Every endpoint but ping needs a key with the right permission, and each key is limited to a number of requests a minute.
 - An address that fails the key check 20 times in 15 minutes is refused for a while.
 - `POST /api/v1/listings` imports one record: it creates a listing, updates the one it made before, or changes nothing when the record is the same.
@@ -21,7 +21,8 @@
 - A JSON feed may wrap its list in an object, such as `{"products": [...]}`.
 - An image the site would refuse, by type or size, is skipped with a warning instead of failing the listing.
 - A listing whose record leaves its feed is deactivated, never deleted, and comes back when the record returns. A feed where most records fail deactivates nothing.
-- Sources are managed under **Plugins → Listing import: sources**: a list, an editor core draws from the plugin's declaration, a preview of what a feed would import, and Fetch now.
+- Sources are managed under **Plugins → Listing import → Sources**: a list, an editor core draws from the plugin's declaration, a preview of what a feed would import, and Fetch now.
+- A Help screen and a **?** help on every screen; the screens follow the admin's own layout.
 - A feed address must pass the same public-address check as images, and a feed declaring an XML entity is refused before it is parsed.
 - Import log lines older than the retention setting are deleted once a day.
 - Every request is a run with its own log lines, and a record that fails names each problem by its field.
