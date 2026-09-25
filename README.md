@@ -42,7 +42,7 @@ curl "https://example.com/index.php?page=route&route=listing-import-api&path=pin
 Both answer:
 
 ```json
-{"data":{"plugin":"listing-import","version":"0.1.0"}}
+{"data":{"plugin":"listing-import","version":"0.2.0"}}
 ```
 
 ## Make a key

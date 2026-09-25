@@ -3,7 +3,7 @@
 Plugin Name: Listing Import
 Plugin URI: https://github.com/mindstellar/shopclass-plugin-listing-import
 Description: Import listings from other systems through a keyed REST API or scheduled JSON, CSV and RSS feeds. Every listing goes through the same checks as one posted by hand.
-Version: 0.1.0
+Version: 0.2.0
 Author: Navjot Tomer (Mindstellar)
 Author URI: https://mindstellar.com
 Short Name: listing-import

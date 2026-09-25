@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+### New
+- Import a file: upload a JSON, NDJSON, CSV or RSS file, preview it, then import it into a source.
+- A Help screen with a full record, curl examples, batches, runs and every error code.
+- The `images` field takes one address on its own as well as a list.
+- A category written as digits, as in CSV, is read as an id.
+
+### Changed
+- The admin screens follow core's layout: one menu group under Plugins, and a **?** help on each screen.
+- Listings are saved, keys rate-limited and addresses checked through core's own tools instead of the plugin's copies.
+
 ## 0.1.0
 
 ### New
@@ -22,8 +34,6 @@
 - An image the site would refuse, by type or size, is skipped with a warning instead of failing the listing.
 - A listing whose record leaves its feed is deactivated, never deleted, and comes back when the record returns. A feed where most records fail deactivates nothing.
 - Sources are managed under **Plugins → Listing import → Sources**: a list, an editor core draws from the plugin's declaration, a preview of what a feed would import, and Fetch now.
-- A Help screen and a **?** help on every screen; the screens follow the admin's own layout.
-- Import a file: upload a JSON, NDJSON, CSV or RSS file, preview it, then import it into a source.
 - A feed address must pass the same public-address check as images, and a feed declaring an XML entity is refused before it is parsed.
 - Import log lines older than the retention setting are deleted once a day.
 - Every request is a run with its own log lines, and a record that fails names each problem by its field.
