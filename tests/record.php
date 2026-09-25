@@ -69,6 +69,9 @@ pin('a contact e-mail that is not one', array('contact.email'), errors(array('co
 pin('an owner naming both an id and an e-mail', array('owner'), errors(array('owner' => array('user_id' => 3, 'email' => 'a@b.co')) + $base));
 pin('an image address that is not http', array('images.1'), errors(array('images' => array('https://example.com/a.jpg', 'file:///etc/passwd')) + $base));
 pin('more than 20 images', array('images'), errors(array('images' => array_fill(0, 21, 'https://example.com/a.jpg')) + $base));
+pin('one image address on its own is fine', array(), errors(array('images' => 'https://example.com/a.jpg') + $base));
+pin('but it must still be http or https', array('images.0'), errors(array('images' => 'file:///etc/passwd') + $base));
+pin('and an object is not a list', array('images'), errors(array('images' => array('a' => 'https://example.com/a.jpg')) + $base));
 pin('a custom field holding an object', array('fields.size'), errors(array('fields' => array('size' => array('w' => 1))) + $base));
 pin('a date that is not a date', array('expires_at'), errors(array('expires_at' => 'next week') + $base));
 pin('a source address that is not http', array('source_url'), errors(array('source_url' => 'javascript:alert(1)') + $base));

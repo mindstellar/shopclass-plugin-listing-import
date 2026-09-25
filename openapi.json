@@ -187,13 +187,23 @@
             }
           },
           "images": {
-            "type": "array",
-            "maxItems": 20,
-            "items": {
-              "type": "string",
-              "format": "uri",
-              "description": "A public http or https address. JPEG, PNG, GIF or WebP, up to 8 MB."
-            }
+            "description": "One image address, or a list of up to 20.",
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "description": "A public http or https address. JPEG, PNG, GIF or WebP, up to 8 MB."
+              },
+              {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "A public http or https address. JPEG, PNG, GIF or WebP, up to 8 MB."
+                }
+              }
+            ]
           },
           "fields": {
             "type": "object",

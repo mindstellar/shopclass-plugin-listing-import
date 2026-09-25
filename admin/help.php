@@ -97,7 +97,7 @@ JSON
         array('price', __('amount as a number or as text such as "1.234,50"; currency as a three-letter code.', 'listing-import')),
         array('location', __('Names are matched to the site\'s own countries, regions and cities. A place the site does not have is kept as text.', 'listing-import')),
         array('owner', __('user_id or email of an account here. Used only when the source allows records to choose accounts.', 'listing-import')),
-        array('images', __('Up to 20 public http or https addresses. JPEG, PNG, GIF or WebP, 8 MB each. A refused image is a warning.', 'listing-import')),
+        array('images', __('One public http or https address, or a list of up to 20. JPEG, PNG, GIF or WebP, 8 MB each. A refused image is a warning.', 'listing-import')),
         array('fields', __('Custom field slug => text, number or true/false.', 'listing-import')),
     )); ?>
 <?php

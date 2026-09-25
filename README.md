@@ -104,7 +104,7 @@ Other fields, all optional:
   matched to the site's own places.
 - `contact`: `name`, `email`, `phone`, `show_email`.
 - `owner`: `{"email": "seller@example.com"}` or `{"user_id": 12}` for an account on the site.
-- `images`: up to 20 public `http`/`https` addresses. JPEG, PNG, GIF or WebP, 8 MB each.
+- `images`: one public `http`/`https` address, or a list of up to 20. JPEG, PNG, GIF or WebP, 8 MB each.
 - `fields`: custom field slug → value.
 - `title` and `description` may be per language: `{"en_US": "Bike", "de_DE": "Fahrrad"}`.
 - `expires_at`, `published_at`: dates. `source_url`: the listing on your side.

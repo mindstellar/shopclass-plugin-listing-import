@@ -208,8 +208,12 @@ final class Validator
 
     private function images(string $path, $v): void
     {
+        // One address may come on its own; the importer reads it as a list of one.
+        if (is_string($v)) {
+            $v = array($v);
+        }
         if (!is_array($v) || !self::isList($v)) {
-            $this->errors[$path] = 'Must be a list of image addresses.';
+            $this->errors[$path] = 'Must be an image address, or a list of them.';
 
             return;
         }
