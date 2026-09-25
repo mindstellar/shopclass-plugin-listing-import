@@ -24,6 +24,7 @@ Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issu
  */
 
 use mindstellar\listingimport\Admin\Keys;
+use mindstellar\listingimport\Admin\Menu;
 use mindstellar\listingimport\Admin\Sources;
 use mindstellar\listingimport\Api;
 use mindstellar\listingimport\Cli;
@@ -81,10 +82,13 @@ foreach (array(
 ) as $liRoute => $liFile) {
     osc_add_route($liRoute, str_replace('-', '/', $liRoute), str_replace('-', '/', $liRoute), osc_plugin_folder(__FILE__) . $liFile);
 }
-osc_add_hook('admin_menu_init', array(Sources::class, 'menu'));
 osc_add_hook('init_admin', array(Sources::class, 'handlePost'));
 
-// The API keys screen.
+// The API keys screen, and the help.
 osc_add_route(Keys::ROUTE, 'listing-import/keys', 'listing-import/keys', osc_plugin_folder(__FILE__) . 'admin/keys.php');
-osc_add_hook('admin_menu_init', array(Keys::class, 'menu'));
 osc_add_hook('init_admin', array(Keys::class, 'handlePost'));
+osc_add_route(Menu::HELP_ROUTE, 'listing-import/help', 'listing-import/help', osc_plugin_folder(__FILE__) . 'admin/help.php');
+
+// One group under Plugins, and the header core draws around each screen.
+osc_add_hook('admin_menu_init', array(Menu::class, 'register'));
+osc_add_hook('init_admin', array(Menu::class, 'pages'));

@@ -16,8 +16,9 @@
 
 return array(
     'title'  => __('Listing import', 'listing-import'),
-    'menu'   => 'plugins',
+    'menu'   => '',
     'intro'  => __('Settings that apply to every import source.', 'listing-import'),
+    'help'   => __('The request limit applies to each API key. Log lines older than the days you keep are deleted once a day.', 'listing-import'),
     'groups' => array(
         array(
             'title'  => __('Limits', 'listing-import'),

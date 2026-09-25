@@ -31,19 +31,6 @@ final class Sources
     public static ?array $retry = null;
 
     /**
-     * @return void
-     */
-    public static function menu(): void
-    {
-        osc_admin_menu_plugins(
-            __('Listing import: sources', 'listing-import'),
-            osc_route_admin_url(self::ROUTE),
-            'listing-import-sources',
-            'administrator'
-        );
-    }
-
-    /**
      * Act on a post to one of the screens.
      *
      * @return void

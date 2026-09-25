@@ -31,19 +31,6 @@ final class Keys
     private const NEW_TOKEN = 'listing_import_new_token';
 
     /**
-     * @return void
-     */
-    public static function menu(): void
-    {
-        osc_admin_menu_plugins(
-            __('Listing import: API keys', 'listing-import'),
-            osc_route_admin_url(self::ROUTE),
-            'listing-import-keys',
-            'administrator'
-        );
-    }
-
-    /**
      * The push source a new key imports into: the one chosen, or else the first. A key always
      * names its source, so it never drifts to another one when sources change.
      *

@@ -28,13 +28,12 @@ $formats = array(
     'shopclass-rss' => __('Shopclass RSS', 'listing-import'),
 );
 
-osc_admin_page_head(__('Import sources', 'listing-import'), array(
-    array('label' => __('Add source', 'listing-import'), 'url' => osc_route_admin_url(Sources::EDIT_ROUTE), 'icon' => 'bi-plus-lg', 'variant' => 'primary'),
-));
+$rowLink = static fn (string $url, string $text, string $class = ''): string
+    => '<a href="' . osc_esc_html($url) . '"' . ($class !== '' ? ' class="' . $class . '"' : '') . '>' . osc_esc_html($text) . '</a>';
+$dialog  = static fn (string $id, string $text, string $class = ''): string
+    => '<a href="#" onclick="document.getElementById(\'' . $id . '\').showModal(); return false;"' . ($class !== '' ? ' class="' . $class . '"' : '') . '>' . osc_esc_html($text) . '</a>';
 
-osc_admin_panel_open(__('Sources', 'listing-import'), array(
-    'subtitle' => __('A push source takes listings a partner sends with an API key. A pull source fetches a feed on a schedule.', 'listing-import'),
-));
+osc_admin_page_head(__('Import sources', 'listing-import'));
 ?>
 <div class="table-contains-actions osc-table-stack">
     <table class="table">
@@ -45,15 +44,28 @@ osc_admin_panel_open(__('Sources', 'listing-import'), array(
             <th><?php _e('Status', 'listing-import'); ?></th>
             <th><?php _e('Listings', 'listing-import'); ?></th>
             <th><?php _e('Last fetch', 'listing-import'); ?></th>
-            <th class="text-end"><?php _e('Actions', 'listing-import'); ?></th>
         </tr>
         </thead>
         <tbody>
-        <?php foreach ($sources as $s) {
-            $id   = (int)$s['pk_i_id'];
-            $pull = $s['e_kind'] === 'pull'; ?>
+        <?php if ($sources === array()) {
+            osc_admin_table_empty(5, array(
+                'icon'  => 'bi-box-arrow-in-down',
+                'title' => __('No sources yet', 'listing-import'),
+                'text'  => __('Add a source for a partner who sends listings, or for a feed this site fetches.', 'listing-import'),
+            ));
+        }
+        foreach ($sources as $s) {
+            $id      = (int)$s['pk_i_id'];
+            $pull    = $s['e_kind'] === 'pull';
+            $actions = array($rowLink(osc_route_admin_url(Sources::EDIT_ROUTE, array('id' => $id)), __('Edit', 'listing-import')));
+            if ($pull) {
+                $actions[] = $rowLink(osc_route_admin_url(Sources::PREVIEW_ROUTE, array('id' => $id)), __('Preview', 'listing-import'));
+                $actions[] = $dialog('li-fetch-' . $id, __('Fetch now', 'listing-import'));
+            }
+            $actions[] = $dialog('li-delete-' . $id, __('Delete', 'listing-import')); ?>
             <tr>
-                <td data-col-name="<?php echo osc_esc_html(__('Name', 'listing-import')); ?>"><?php echo osc_esc_html($s['s_name']); ?></td>
+                <td data-col-name="<?php echo osc_esc_html(__('Name', 'listing-import')); ?>"><?php echo osc_esc_html($s['s_name']); ?>
+                    <div class="actions"><ul><li><?php echo implode('</li><li>', $actions); ?></li></ul></div></td>
                 <td data-col-name="<?php echo osc_esc_html(__('How', 'listing-import')); ?>"><?php
                     echo $pull
                         ? osc_esc_html(sprintf(__('Fetches %1$s every %2$d min', 'listing-import'), $formats[$s['s_format']] ?? $s['s_format'], (int)$s['i_interval_minutes']))
@@ -68,29 +80,29 @@ osc_admin_panel_open(__('Sources', 'listing-import'), array(
                     echo $pull && $s['dt_last_run'] !== null
                         ? osc_esc_html(osc_format_date($s['dt_last_run']) . ' ' . date('H:i', strtotime($s['dt_last_run']))) . '<br><small class="text-muted">' . osc_esc_html($s['s_last_status']) . '</small>'
                         : '&mdash;'; ?></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Actions', 'listing-import')); ?>" class="text-end"><a class="btn btn-sm btn-dim" href="<?php echo osc_esc_html(osc_route_admin_url(Sources::EDIT_ROUTE, array('id' => $id))); ?>"><?php _e('Edit', 'listing-import'); ?></a>
-                    <?php if ($pull) { ?>
-                        <a class="btn btn-sm btn-dim" href="<?php echo osc_esc_html(osc_route_admin_url(Sources::PREVIEW_ROUTE, array('id' => $id))); ?>"><?php _e('Preview', 'listing-import'); ?></a>
-                        <form method="post" action="<?php echo osc_esc_html($listUrl); ?>" class="d-inline">
-                            <input type="hidden" name="li_do" value="fetch">
-                            <input type="hidden" name="id" value="<?php echo $id; ?>">
-                            <button type="submit" class="btn btn-sm btn-dim"><?php _e('Fetch now', 'listing-import'); ?></button>
-                        </form>
-                    <?php } ?>
-                    <button type="button" class="btn btn-sm btn-dim text-danger" onclick="document.getElementById('li-delete-<?php echo $id; ?>').showModal()"><?php _e('Delete', 'listing-import'); ?></button></td>
             </tr>
         <?php } ?>
         </tbody>
     </table>
 </div>
 <?php
-osc_admin_panel_close();
-
 foreach ($sources as $s) {
+    $id = (int)$s['pk_i_id'];
+    if ($s['e_kind'] === 'pull') {
+        osc_admin_confirm_dialog(array(
+            'id'      => 'li-fetch-' . $id,
+            'url'     => $listUrl,
+            'fields'  => array('li_do' => 'fetch', 'id' => $id),
+            'title'   => sprintf(__('Fetch "%s" now?', 'listing-import'), $s['s_name']),
+            'text'    => __('The fetch runs with the next background jobs, and imports what the feed holds.', 'listing-import'),
+            'confirm' => __('Fetch now', 'listing-import'),
+            'tone'    => 'plain',
+        ));
+    }
     osc_admin_confirm_dialog(array(
-        'id'      => 'li-delete-' . (int)$s['pk_i_id'],
+        'id'      => 'li-delete-' . $id,
         'url'     => $listUrl,
-        'fields'  => array('li_do' => 'delete', 'id' => (int)$s['pk_i_id']),
+        'fields'  => array('li_do' => 'delete', 'id' => $id),
         'title'   => sprintf(__('Delete "%s"?', 'listing-import'), $s['s_name']),
         'text'    => __('Its listings stay on the site, but they are no longer updated from this source.', 'listing-import'),
         'confirm' => __('Delete', 'listing-import'),

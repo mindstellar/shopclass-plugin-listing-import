@@ -36,8 +36,9 @@ $pingUrl  = osc_route_url(Plugin::ROUTE, array('path' => 'ping'));
 osc_admin_page_head(__('API keys', 'listing-import'));
 
 if ($newToken !== '') {
-    osc_admin_panel_open(__('Your new key', 'listing-import'), array(
-        'subtitle' => __('Copy it now. It is not shown again.', 'listing-import'),
+    osc_admin_form_section(__('Your new key', 'listing-import'), array(
+        'spaced' => true,
+        'intro'  => __('Copy it now. It is not shown again.', 'listing-import'),
     ));
     osc_admin_field(array(
         'type'  => 'text',
@@ -49,12 +50,10 @@ if ($newToken !== '') {
         'help'  => __('Send it in the Authorization header: Bearer, a space, then the key.', 'listing-import'),
         'attrs' => array('readonly' => true, 'onfocus' => 'this.select()', 'spellcheck' => 'false'),
     ));
-    osc_admin_panel_close();
 }
 
-osc_admin_panel_open(__('Keys', 'listing-import'), array(
-    'subtitle' => sprintf(__('A partner sends listings to %s with one of these keys.', 'listing-import'), dirname($pingUrl) . '/listings'),
-));
+$dialog = static fn (string $id, string $text): string
+    => '<a href="#" onclick="document.getElementById(\'' . $id . '\').showModal(); return false;">' . osc_esc_html($text) . '</a>';
 ?>
 <div class="table-contains-actions osc-table-stack">
     <table class="table">
@@ -65,12 +64,11 @@ osc_admin_panel_open(__('Keys', 'listing-import'), array(
             <th><?php _e('Permissions', 'listing-import'); ?></th>
             <th><?php _e('Status', 'listing-import'); ?></th>
             <th><?php _e('Last used', 'listing-import'); ?></th>
-            <th class="text-end"><?php _e('Actions', 'listing-import'); ?></th>
         </tr>
         </thead>
         <tbody>
         <?php if ($keys === array()) {
-            osc_admin_table_empty(6, array(
+            osc_admin_table_empty(5, array(
                 'icon'  => 'bi-key',
                 'title' => __('No API keys yet', 'listing-import'),
                 'text'  => __('Add a key below, then give it to the system that sends you listings.', 'listing-import'),
@@ -85,7 +83,10 @@ osc_admin_panel_open(__('Keys', 'listing-import'), array(
                 array_filter(explode(' ', (string)$key['s_scopes']))
             ); ?>
             <tr>
-                <td data-col-name="<?php echo osc_esc_html(__('Name', 'listing-import')); ?>"><?php echo osc_esc_html($key['s_name']); ?></td>
+                <td data-col-name="<?php echo osc_esc_html(__('Name', 'listing-import')); ?>"><?php echo osc_esc_html($key['s_name']);
+                    if ($enabled) { ?>
+                        <div class="actions"><ul><li><?php echo $dialog('li-rotate-' . $id, __('Rotate', 'listing-import')); ?></li><li><?php echo $dialog('li-revoke-' . $id, __('Revoke', 'listing-import')); ?></li></ul></div>
+                    <?php } ?></td>
                 <td data-col-name="<?php echo osc_esc_html(__('Key id', 'listing-import')); ?>"><code><?php echo osc_esc_html($key['s_key_id']); ?></code></td>
                 <td data-col-name="<?php echo osc_esc_html(__('Permissions', 'listing-import')); ?>"><?php echo osc_esc_html(implode(', ', $scopes)); ?></td>
                 <td data-col-name="<?php echo osc_esc_html(__('Status', 'listing-import')); ?>"><?php
@@ -99,26 +100,17 @@ osc_admin_panel_open(__('Keys', 'listing-import'), array(
                 <td data-col-name="<?php echo osc_esc_html(__('Last used', 'listing-import')); ?>"><?php echo $key['dt_last_used'] === null
                         ? osc_esc_html(__('Never', 'listing-import'))
                         : osc_esc_html(osc_format_date($key['dt_last_used'])) . '<br><small class="text-muted">' . osc_esc_html($key['s_last_ip']) . '</small>'; ?></td>
-                <td data-col-name="<?php echo osc_esc_html(__('Actions', 'listing-import')); ?>" class="text-end"><?php if ($enabled) { ?>
-                        <form method="post" action="<?php echo osc_esc_html($selfUrl); ?>" class="d-inline">
-                            <input type="hidden" name="li_do" value="rotate">
-                            <input type="hidden" name="id" value="<?php echo $id; ?>">
-                            <button type="submit" class="btn btn-sm btn-dim"><?php _e('Rotate', 'listing-import'); ?></button>
-                        </form>
-                        <button type="button" class="btn btn-sm btn-dim text-danger"
-                                onclick="document.getElementById('li-revoke-<?php echo $id; ?>').showModal()">
-                            <?php _e('Revoke', 'listing-import'); ?>
-                        </button>
-                    <?php } ?></td>
             </tr>
         <?php } ?>
         </tbody>
     </table>
 </div>
 <?php
-osc_admin_panel_close();
-
-osc_admin_panel_open(__('Add a key', 'listing-import'));
+echo '<div id="li-add-key"></div>';
+osc_admin_form_section(__('Add a key', 'listing-import'), array(
+    'spaced' => true,
+    'intro'  => sprintf(__('A partner sends listings to %s with one of these keys.', 'listing-import'), dirname($pingUrl) . '/listings'),
+));
 osc_admin_form_open(array(
     'url'    => $selfUrl,
     'fields' => array('li_do' => 'create'),
@@ -158,12 +150,20 @@ osc_admin_form_row_close();
 osc_admin_form_close(array(
     array('label' => __('Add key', 'listing-import'), 'type' => 'submit', 'variant' => 'primary'),
 ));
-osc_admin_panel_close();
 
 foreach ($keys as $key) {
     if ((int)$key['b_enabled'] !== 1) {
         continue;
     }
+    osc_admin_confirm_dialog(array(
+        'id'      => 'li-rotate-' . (int)$key['pk_i_id'],
+        'url'     => $selfUrl,
+        'fields'  => array('li_do' => 'rotate', 'id' => (int)$key['pk_i_id']),
+        'title'   => sprintf(__('Rotate "%s"?', 'listing-import'), $key['s_name']),
+        'text'    => __('A new key replaces this one, with the same permissions. The old key stops working at once.', 'listing-import'),
+        'confirm' => __('Rotate', 'listing-import'),
+        'tone'    => 'plain',
+    ));
     osc_admin_confirm_dialog(array(
         'id'      => 'li-revoke-' . (int)$key['pk_i_id'],
         'url'     => $selfUrl,

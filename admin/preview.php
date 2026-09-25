@@ -34,14 +34,14 @@ if ($source === null || $source->kind !== 'pull') {
 
 // A dry run: the feed is fetched and each record is placed on this site, but nothing is written.
 $read = Plugin::pull()->read($source);
-osc_admin_panel_open($source->name, array(
-    'subtitle' => $read['error'] === null
+osc_admin_form_section($source->name, array(
+    'spaced' => true,
+    'intro'  => $read['error'] === null
         ? sprintf(__('%1$d records in the feed. The first %2$d, as they would be imported. Nothing has been changed.', 'listing-import'), count($read['records']), min(20, count($read['records'])))
         : __('The feed could not be read.', 'listing-import'),
 ));
 if ($read['error'] !== null) {
     osc_admin_empty(array('icon' => 'bi-exclamation-triangle', 'title' => $read['error']));
-    osc_admin_panel_close();
 
     return;
 }
@@ -92,4 +92,3 @@ $words    = array(
     </table>
 </div>
 <?php
-osc_admin_panel_close();

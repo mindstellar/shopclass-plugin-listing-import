@@ -84,10 +84,15 @@ pin('a deleted listing is forgotten', array(array(\mindstellar\listingimport\Imp
 pin('the sources screens are admin route files', array(
     'listing-import/admin/sources.php', 'listing-import/admin/source.php', 'listing-import/admin/preview.php',
 ), array_map(static fn ($r) => $GLOBALS['__routes'][$r][2] ?? null, array('listing-import-sources', 'listing-import-sources-edit', 'listing-import-sources-preview')));
-pin('each screen group has a menu entry and a post handler', array(
-    array(array(\mindstellar\listingimport\Admin\Sources::class, 'menu'), array(\mindstellar\listingimport\Admin\Keys::class, 'menu')),
-    array(array(\mindstellar\listingimport\Admin\Sources::class, 'handlePost'), array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost')),
+pin('one menu group, a post handler per screen group, and a declared header per screen', array(
+    array(array(\mindstellar\listingimport\Admin\Menu::class, 'register')),
+    array(
+        array(\mindstellar\listingimport\Admin\Sources::class, 'handlePost'),
+        array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost'),
+        array(\mindstellar\listingimport\Admin\Menu::class, 'pages'),
+    ),
 ), array($GLOBALS['__hooks']['admin_menu_init'] ?? null, $GLOBALS['__hooks']['init_admin'] ?? null));
+pin('the help screen is an admin route file', 'listing-import/admin/help.php', $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Menu::HELP_ROUTE][2] ?? null);
 pin('the route hook answers with Api::handle', array(array(Api::class, 'handle')), $GLOBALS['__hooks'][Plugin::ROUTE] ?? null);
 
 harness_section('migrations');
