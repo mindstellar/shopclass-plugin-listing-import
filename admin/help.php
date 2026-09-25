@@ -64,21 +64,112 @@ osc_admin_form_section(__('Send listings to the API', 'listing-import'), array(
         array('GET /runs/{id}', __('How a batch went.', 'listing-import')),
         array('GET /openapi.json', __('The whole API as an OpenAPI file. No key needed.', 'listing-import')),
     )); ?>
-    <p><?php _e('The smallest record:', 'listing-import'); ?></p>
+    <p><?php _e('The smallest record. The external id is your own id: send it again and the same listing is updated. Always send the whole record; there is no partial update.', 'listing-import'); ?></p>
     <?php $code("{\n  \"external_id\": \"A-1001\",\n  \"title\": \"Blue bike\",\n  \"description\": \"A good bike, 21 gears.\",\n  \"category\": \"Vehicles > Bikes\"\n}"); ?>
-    <p><?php _e('Optional fields: price, location, contact, owner, images (up to 20 public addresses), fields (custom fields by slug), expires_at. A title and description may be given per language. Always send the whole record; there is no partial update.', 'listing-import'); ?></p>
 <?php
+osc_admin_disclosure_open(__('A record with every field', 'listing-import'));
+?>
+    <p><?php _e('Only external_id, title and description are required, and category when the source has no default one. A field the plugin does not know comes back as a warning; the record is still imported.', 'listing-import'); ?></p>
+    <?php $code(<<<'JSON'
+{
+  "external_id": "A-1001",
+  "title": {"en_US": "Blue bike", "de_DE": "Blaues Fahrrad"},
+  "description": {"en_US": "A good bike, 21 gears.", "de_DE": "Ein gutes Rad, 21 Gänge."},
+  "category": "Vehicles > Bikes",
+  "price": {"amount": "1.234,50", "currency": "EUR"},
+  "location": {
+    "country": "Germany", "region": "Bavaria", "city": "Munich",
+    "city_area": "Schwabing", "address": "Leopoldstraße 1", "zip": "80802",
+    "lat": 48.1624, "lng": 11.5865
+  },
+  "contact": {"name": "Sam Seller", "email": "sam@example.com", "phone": "+49 89 123456", "show_email": false},
+  "owner": {"email": "sam@example.com"},
+  "images": ["https://cdn.example.com/bike-1.jpg", "https://cdn.example.com/bike-2.jpg"],
+  "fields": {"colour": "Blue", "frame-size": 56},
+  "expires_at": "2026-12-31T23:59:59Z",
+  "published_at": "2026-09-01T10:00:00Z",
+  "source_url": "https://shop.example.com/bikes/a-1001"
+}
+JSON
+    ); ?>
+    <?php $table(array(__('Field', 'listing-import'), __('What it takes', 'listing-import')), array(
+        array('category', __('An id, a slug, a path such as "Vehicles > Bikes", or {"id"}, {"slug"}, {"path"} or {"label"}.', 'listing-import')),
+        array('price', __('amount as a number or as text such as "1.234,50"; currency as a three-letter code.', 'listing-import')),
+        array('location', __('Names are matched to the site\'s own countries, regions and cities. A place the site does not have is kept as text.', 'listing-import')),
+        array('owner', __('user_id or email of an account here. Used only when the source allows records to choose accounts.', 'listing-import')),
+        array('images', __('Up to 20 public http or https addresses. JPEG, PNG, GIF or WebP, 8 MB each. A refused image is a warning.', 'listing-import')),
+        array('fields', __('Custom field slug => text, number or true/false.', 'listing-import')),
+    )); ?>
+<?php
+osc_admin_disclosure_close();
+
+osc_admin_disclosure_open(__('Import one record', 'listing-import'));
+$code(sprintf(<<<'SH'
+curl -X POST %1$s/listings \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id":"A-1001","title":"Blue bike","description":"A good bike, 21 gears.","category":"Vehicles > Bikes"}'
+SH
+, $apiUrl));
+?>
+    <p><?php _e('A new listing answers 201. The same record sent again answers 200 with the status unchanged, and a changed one with updated.', 'listing-import'); ?></p>
+    <?php $code('{"data":{"status":"created","external_id":"A-1001","item_id":294,"run_id":20}}'); ?>
+    <p><?php _e('Warnings, when there are any, come beside the data:', 'listing-import'); ?></p>
+    <?php $code('{"data":{"status":"created","external_id":"A-1001","item_id":294,"run_id":20},"warnings":{"colour":"Unknown field, ignored."}}'); ?>
+    <p><?php _e('PUT to /listings/{external_id} does the same, with the id in the address. An id in an address cannot hold a slash; encode other characters as usual.', 'listing-import'); ?></p>
+<?php
+osc_admin_disclosure_close();
+
+osc_admin_disclosure_open(__('Look up or delete a listing', 'listing-import'));
+$code(sprintf("curl %1\$s/listings/A-1001 \\\n  -H \"Authorization: Bearer \$KEY\"", $apiUrl));
+$code('{"data":{"external_id":"A-1001","item_id":294,"status":"active","url":"https://example.com/bikes/blue-bike_i294","last_seen":"2026-09-25 05:33:06","synced_at":"2026-09-25 05:33:06"}}');
+$code(sprintf("curl -X DELETE %1\$s/listings/A-1001 \\\n  -H \"Authorization: Bearer \$KEY\"", $apiUrl));
+$code('{"data":{"external_id":"A-1001","item_id":294,"deleted":true}}');
+?>
+    <p><?php _e('Deleting needs a key with the Remove listings permission.', 'listing-import'); ?></p>
+<?php
+osc_admin_disclosure_close();
+
+osc_admin_disclosure_open(__('Import many records at once', 'listing-import'));
+$code(sprintf(<<<'SH'
+curl -X POST %1$s/listings:batch \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"records":[{"external_id":"A-1001", ...}, {"external_id":"A-1002", ...}]}'
+SH
+, $apiUrl));
+?>
+    <p><?php _e('Up to 200 records. It answers 202 at once; the site\'s background jobs import them.', 'listing-import'); ?></p>
+    <?php $code('{"data":{"run_id":23,"records":2,"status":"queued"}}'); ?>
+    <p><?php _e('Ask how the run went. It needs a key with the Read import results permission.', 'listing-import'); ?></p>
+    <?php $code(sprintf("curl %1\$s/runs/23 \\\n  -H \"Authorization: Bearer \$KEY\"", $apiUrl)); ?>
+    <?php $code('{"data":{"run_id":23,"status":"finished","records":2,"counts":{"created":1,"updated":0,"unchanged":0,"retired":0,"failed":1},"started_at":"2026-09-25 05:33:06","finished_at":"2026-09-25 05:33:07","failures":[{"external_id":"A-1002","errors":{"description":"Required."}}]}}'); ?>
+<?php
+osc_admin_disclosure_close();
+
+osc_admin_disclosure_open(__('When a request is refused', 'listing-import'));
+?>
+    <p><?php _e('Every error has the same shape. For a record, fields says what is wrong with each one, so it can be fixed in one go.', 'listing-import'); ?></p>
+    <?php $code('{"error":{"code":"not_imported","message":"The record was not imported; see fields.","fields":{"description":"Required."}}}'); ?>
+<?php
+osc_admin_disclosure_close();
 
 osc_admin_form_section(__('Answers and limits', 'listing-import'), array('spaced' => true));
-$table(array(__('Status', 'listing-import'), __('Why', 'listing-import')), array(
-    array('401', __('No key, or a wrong one.', 'listing-import')),
-    array('403', __('The key lacks the permission.', 'listing-import')),
-    array('409', __('The key\'s source is missing or switched off.', 'listing-import')),
-    array('422', __('The record is wrong. The answer says which fields.', 'listing-import')),
-    array('429', __('Too many requests. Wait for the Retry-After seconds.', 'listing-import')),
+$table(array(__('Status', 'listing-import'), __('Code', 'listing-import'), __('Why', 'listing-import')), array(
+    array('400', 'invalid_json', __('The body is not JSON.', 'listing-import')),
+    array('401', 'unauthorized', __('No key, or a wrong one.', 'listing-import')),
+    array('403', 'forbidden', __('The key lacks the permission.', 'listing-import')),
+    array('404', 'not_found', __('No such endpoint, listing or run.', 'listing-import')),
+    array('405', 'method_not_allowed', __('The endpoint does not take that method.', 'listing-import')),
+    array('409', 'no_source', __('The key\'s source is missing or switched off.', 'listing-import')),
+    array('413', 'too_large, too_many_records', __('A body over 1 MB, or more than 200 records.', 'listing-import')),
+    array('415', 'unsupported_media_type', __('Send Content-Type: application/json.', 'listing-import')),
+    array('422', 'not_imported, invalid_batch, id_mismatch', __('The record is wrong. fields says where.', 'listing-import')),
+    array('429', 'rate_limited', __('Too many requests. Wait for the Retry-After seconds.', 'listing-import')),
+    array('500', 'not_deleted, server_error', __('Something failed on the site. Its error log says what.', 'listing-import')),
 ));
 ?>
-    <p><?php _e('Each key may send a set number of requests a minute; change it under Settings. An address that sends a wrong key 20 times in 15 minutes is refused for a while.', 'listing-import'); ?></p>
+    <p><?php _e('Each key may send a set number of requests a minute; change it under Settings. An address that sends a wrong key 20 times in 15 minutes is refused for a while. The whole API is described in openapi.json, which needs no key.', 'listing-import'); ?></p>
 <?php
 
 osc_admin_form_section(__('Fetch a feed', 'listing-import'), array('spaced' => true));
