@@ -104,7 +104,10 @@ Other fields, all optional:
   matched to the site's own places.
 - `contact`: `name`, `email`, `phone`, `show_email`.
 - `owner`: `{"email": "seller@example.com"}` or `{"user_id": 12}` for an account on the site.
+  Used only when the source allows records to choose accounts (off by default); otherwise
+  ignored with a warning.
 - `images`: one public `http`/`https` address, or a list of up to 20. JPEG, PNG, GIF or WebP, 8 MB each.
+  The first 10 are fetched; the rest come back as a warning.
 - `fields`: custom field slug → value.
 - `title` and `description` may be per language: `{"en_US": "Bike", "de_DE": "Fahrrad"}`.
 - `expires_at`, `published_at`: dates. `source_url`: the listing on your side.
@@ -155,7 +158,8 @@ The site's own rules apply to every listing: moderation, spam checks, listing li
 ## Pull a feed
 
 **Plugins → Listing import → Sources**, then the **+** button. Give the feed address, its format, and how
-often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS. A JSON feed
+often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS, up to 5,000
+records and 20 MB. A JSON feed
 may be a plain list or an object holding one list, such as `{"products": [...]}`.
 
 If the feed names its fields differently, map them one per line:
@@ -176,7 +180,7 @@ record returns. If most records in a fetch fail, nothing is deactivated.
 ## Import a file
 
 **Plugins → Listing import → Import a file.** Upload a JSON, NDJSON, CSV or RSS file, up to
-20 MB, and choose its source. The preview shows how each record would be imported. Nothing
+20 MB and 5,000 records, and choose its source. The preview shows how each record would be imported. Nothing
 changes until you click **Import**. Listings the file leaves out are not touched.
 
 ## Command line
@@ -189,14 +193,6 @@ php oc-cli.php jobs:work                                  # run queued batches a
 ```
 
 Batches and feeds run with the site's background jobs. Make sure the site's cron runs.
-
-## Tests
-
-Every test runs on its own, with no database and no running site:
-
-```bash
-./tests/run.sh
-```
 
 ## Licence
 
