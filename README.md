@@ -1,6 +1,6 @@
 # Listing Import
 
-Import listings into Shopclass from other systems: a keyed REST API, and scheduled JSON,
+Import listings into ShopClass from other systems: a keyed REST API, and scheduled JSON,
 CSV and RSS feeds. Every listing goes through the same checks as one posted by hand:
 moderation, spam checks, listing limits and expiry.
 
@@ -15,7 +15,7 @@ moderation, spam checks, listing limits and expiry.
 
 ## Requirements
 
-- Shopclass 6.4.0 or later
+- ShopClass 6.4.0 or later
 - PHP 8.0 or later
 
 ## Install
@@ -158,7 +158,7 @@ The site's own rules apply to every listing: moderation, spam checks, listing li
 ## Pull a feed
 
 **Plugins → Listing import → Sources**, then the **+** button. Give the feed address, its format, and how
-often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS, up to 5,000
+often to fetch it. Formats: JSON, NDJSON, CSV, or another ShopClass site's RSS, up to 5,000
 records and 20 MB. A JSON feed
 may be a plain list or an object holding one list, such as `{"products": [...]}`.
 
