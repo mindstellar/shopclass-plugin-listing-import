@@ -23,7 +23,7 @@ use mindstellar\migration\MigrationRunner;
 final class Schema
 {
     /** Bump with every new migration file. */
-    public const VERSION = 1;
+    public const VERSION = 2;
 
     /** The file-name prefix every migration carries. */
     public const PREFIX = 'listing-import_';
@@ -33,7 +33,6 @@ final class Schema
         't_listing_import_log',
         't_listing_import_run',
         't_listing_import_item',
-        't_listing_import_key',
         't_listing_import_source',
     );
 

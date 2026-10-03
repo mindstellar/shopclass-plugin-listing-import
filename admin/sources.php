@@ -70,7 +70,7 @@ osc_admin_page_head(__('Import sources', 'listing-import'));
                     echo $pull
                         ? osc_esc_html(sprintf(__('Fetches %1$s every %2$d min', 'listing-import'), $formats[$s['s_format']] ?? $s['s_format'], (int)$s['i_interval_minutes']))
                           . '<br><small class="text-muted text-break">' . osc_esc_html($s['s_url']) . '</small>'
-                        : osc_esc_html(sprintf(__('API, %d active keys', 'listing-import'), (int)$s['i_keys'])); ?></td>
+                        : osc_esc_html(sprintf(__('API, %d keys', 'listing-import'), (int)$s['i_keys'])); ?></td>
                 <td data-col-name="<?php echo osc_esc_html(__('Status', 'listing-import')); ?>"><?php
                     (int)$s['b_enabled'] === 1
                         ? osc_admin_status('active', __('On', 'listing-import'))

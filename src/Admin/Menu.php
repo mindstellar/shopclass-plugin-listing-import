@@ -32,7 +32,7 @@ final class Menu
         foreach (array(
             'listing-import-sources'  => array(__('Sources', 'listing-import'), osc_route_admin_url(Sources::ROUTE)),
             'listing-import-upload'   => array(__('Import a file', 'listing-import'), osc_route_admin_url(Upload::ROUTE)),
-            'listing-import-keys'     => array(__('API keys', 'listing-import'), osc_route_admin_url(Keys::ROUTE)),
+            'listing-import-keys'     => array(__('API keys (Settings > API)', 'listing-import'), osc_admin_base_url(true) . '?page=settings&action=api'),
             'listing-import-settings' => array(__('Settings', 'listing-import'), osc_settings_page_url(Plugin::PAGE)),
             'listing-import-help'     => array(__('Help', 'listing-import'), osc_route_admin_url(self::HELP_ROUTE)),
         ) as $id => [$title, $url]) {
@@ -65,14 +65,6 @@ final class Menu
         osc_admin_plugin_page(Sources::PREVIEW_ROUTE, array(
             'title' => __('Feed preview', 'listing-import'),
             'help'  => self::help(__('A preview fetches the feed and shows what an import would do. It changes nothing.', 'listing-import')),
-        ));
-        osc_admin_plugin_page(Keys::ROUTE, array(
-            'title'   => __('API keys', 'listing-import'),
-            'help'    => self::help(__('Each key imports into one push source and holds only the permissions you give it. The key is shown once; rotate it to get a new one.', 'listing-import')),
-            'actions' => array(
-                array('icon' => 'bi-plus-circle-fill', 'url' => '#li-add-key', 'title' => __('Add key', 'listing-import')),
-                $settings,
-            ),
         ));
         osc_admin_plugin_page(Upload::ROUTE, array(
             'title' => __('Import a file', 'listing-import'),

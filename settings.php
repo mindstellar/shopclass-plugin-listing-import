@@ -18,20 +18,11 @@ return array(
     'title'  => __('Listing import', 'listing-import'),
     'menu'   => '',
     'intro'  => __('Settings that apply to every import source.', 'listing-import'),
-    'help'   => __('The request limit applies to each API key. Log lines older than the days you keep are deleted once a day.', 'listing-import'),
+    'help'   => __('Log lines older than the days you keep are deleted once a day. API keys and their request limits are under Settings > API.', 'listing-import'),
     'groups' => array(
         array(
-            'title'  => __('Limits', 'listing-import'),
+            'title'  => __('Logs', 'listing-import'),
             'fields' => array(
-                array(
-                    'type'    => 'number',
-                    'name'    => 'rate_limit',
-                    'label'   => __('Requests per minute, per key', 'listing-import'),
-                    'help'    => __('A key that sends more is told to wait and try again.', 'listing-import'),
-                    'default' => 60,
-                    'min'     => 1,
-                    'max'     => 6000,
-                ),
                 array(
                     'type'    => 'number',
                     'name'    => 'retention_days',

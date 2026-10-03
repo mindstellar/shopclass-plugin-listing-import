@@ -7,7 +7,7 @@
 
 /**
  * The plugin loads without a database: it registers its install and uninstall steps, its
- * settings page, its API route and handler, and its migrations cannot collide with core's.
+ * settings page, its API routes and scopes, and its migrations cannot collide with core's.
  */
 
 require __DIR__ . '/lib/harness.php';
@@ -17,6 +17,7 @@ define('DB_TABLE_PREFIX', 'oc_');
 
 $GLOBALS['__hooks']    = array();
 $GLOBALS['__routes']   = array();
+$GLOBALS['__api_routes'] = array();
 $GLOBALS['__settings'] = array();
 $GLOBALS['__install']  = null;
 
@@ -40,9 +41,9 @@ function osc_register_settings_page($id, $spec)
 {
     $GLOBALS['__settings'][$id] = $spec;
 }
-function osc_add_route_hook($id, $regexp, $url)
+function osc_api_register_route($method, $path, $spec)
 {
-    $GLOBALS['__routes'][$id] = array($regexp, $url);
+    $GLOBALS['__api_routes'][strtoupper($method) . ' ' . $path] = $spec;
 }
 function osc_add_route($id, $regexp, $url, $file)
 {
@@ -70,15 +71,29 @@ pin('uninstall runs Plugin::uninstall', array(array(Plugin::class, 'uninstall'))
 check('the configure link has a handler', isset($GLOBALS['__hooks']['listing-import/index.php_configure']));
 pin('an update migrates on init', array(array(Plugin::class, 'upgrade')), $GLOBALS['__hooks']['init'] ?? null);
 pin('the settings page is declared under the plugin id', array('listing-import'), array_keys($GLOBALS['__settings']));
-pin('its fields', array('rate_limit', 'retention_days'), array_column($GLOBALS['__settings']['listing-import']['groups'][0]['fields'], 'name'));
-pin('one API route, under /api/v1/', array('api/v1/(.+)', 'api/v1/{path}'), $GLOBALS['__routes'][Plugin::ROUTE] ?? null);
-pin('the keys screen is an admin route file', array('listing-import/keys', 'listing-import/keys', 'listing-import/admin/keys.php'), $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Keys::ROUTE] ?? null);
+pin('its fields', array('retention_days'), array_column($GLOBALS['__settings']['listing-import']['groups'][0]['fields'], 'name'));
+check('its API routes are all below ext/listing-import/', array_reduce(array_keys($GLOBALS['__api_routes']), static fn ($ok, $key) => $ok && str_contains($key, ' ext/listing-import/'), true));
+check('and it adds no route hook of its own (the stub would have stopped the load)', !function_exists('osc_add_route_hook'));
+pin('six endpoints', array(
+    'DELETE ext/listing-import/listings/{external_id}',
+    'GET ext/listing-import/listings/{external_id}',
+    'GET ext/listing-import/runs/{id}',
+    'POST ext/listing-import/listings',
+    'POST ext/listing-import/listings:batch',
+    'PUT ext/listing-import/listings/{external_id}',
+), (static function () {
+    $keys = array_keys($GLOBALS['__api_routes']);
+    sort($keys);
+
+    return $keys;
+})());
+pin('its scopes come through api_scopes', array(array_keys(Api::scopes())), array(array_keys(call_user_func($GLOBALS['__hooks']['filter:api_scopes'][0], array()))));
 pin('queued records have a job handler, and logs are pruned daily', array(
     array(array(Plugin::class, 'registerJobs')),
     array(array(Plugin::class, 'prune')),
 ), array($GLOBALS['__hooks']['register_jobs'] ?? null, $GLOBALS['__hooks']['cron_daily'] ?? null));
 pin('the commands join oc-cli.php', array(array(\mindstellar\listingimport\Cli::class, 'commands')), $GLOBALS['__hooks']['filter:cli_commands'] ?? null);
-pin('as import:run, import:status and import:key:create', array('import:run', 'import:status', 'import:key:create'), array_keys(\mindstellar\listingimport\Cli::commands(array())));
+pin('as import:run and import:status; keys are core\'s api:key:create', array('import:run', 'import:status'), array_keys(\mindstellar\listingimport\Cli::commands(array())));
 pin('each hour, old downloaded images are swept and due feeds are queued', array(array(Plugin::class, 'sweep'), array(Plugin::class, 'schedule')), $GLOBALS['__hooks']['cron_hourly'] ?? null);
 pin('a deleted listing is forgotten', array(array(\mindstellar\listingimport\Import\DbStore::class, 'forget')), $GLOBALS['__hooks']['before_delete_item'] ?? null);
 pin('the sources screens are admin route files', array(
@@ -88,13 +103,11 @@ pin('one menu group, a post handler per screen group, and a declared header per 
     array(array(\mindstellar\listingimport\Admin\Menu::class, 'register')),
     array(
         array(\mindstellar\listingimport\Admin\Sources::class, 'handlePost'),
-        array(\mindstellar\listingimport\Admin\Keys::class, 'handlePost'),
         array(\mindstellar\listingimport\Admin\Upload::class, 'handlePost'),
         array(\mindstellar\listingimport\Admin\Menu::class, 'pages'),
     ),
 ), array($GLOBALS['__hooks']['admin_menu_init'] ?? null, $GLOBALS['__hooks']['init_admin'] ?? null));
 pin('the help and upload screens are admin route files', array('listing-import/admin/help.php', 'listing-import/admin/upload.php'), array($GLOBALS['__routes'][\mindstellar\listingimport\Admin\Menu::HELP_ROUTE][2] ?? null, $GLOBALS['__routes'][\mindstellar\listingimport\Admin\Upload::ROUTE][2] ?? null));
-pin('the route hook answers with Api::handle', array(array(Api::class, 'handle')), $GLOBALS['__hooks'][Plugin::ROUTE] ?? null);
 
 harness_section('migrations');
 
@@ -106,19 +119,13 @@ pin(
     array_values(array_filter($files, static fn ($f) => strncmp($f, Schema::PREFIX, strlen(Schema::PREFIX)) !== 0))
 );
 pin('Schema::VERSION counts them', count($files), Schema::VERSION);
+check('the plugin has no key table of its own any more', !in_array('t_listing_import_key', Schema::TABLES, true));
 
-harness_section('the ping endpoint');
+harness_section('the key ids on a source');
 
-require __DIR__ . '/lib/fakes.php';
-$api = fake_api();
-$r   = $api->dispatch(new \mindstellar\listingimport\Http\Request('GET', 'ping'));
-pin('answers 200 with no key', 200, $r->status);
-pin('with the plugin and its version', array('data' => array('plugin' => 'listing-import', 'version' => Plugin::VERSION)), $r->body);
-$r = $api->dispatch(new \mindstellar\listingimport\Http\Request('POST', 'ping'));
-pin('another method is 405', 405, $r->status);
-pin('and says which is allowed', 'GET', $r->headers['Allow'] ?? null);
-$r = $api->dispatch(new \mindstellar\listingimport\Http\Request('GET', 'nothing/here'));
-pin('an unknown path is 404', 404, $r->status);
-pin('with the error shape every error has', 'not_found', $r->body['error']['code'] ?? null);
+use mindstellar\listingimport\Admin\SourceForm;
+
+pin('are stored as digits, once each, comma separated', '3,5,12', SourceForm::keyIds(' 3, 5 ;12 , 3 '));
+pin('anything else is dropped', '', SourceForm::keyIds('abc, 0, -'));
 
 exit(harness_result());

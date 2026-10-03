@@ -11,8 +11,6 @@
 
 namespace mindstellar\listingimport;
 
-use mindstellar\listingimport\Admin\Keys;
-use mindstellar\listingimport\Auth\KeyStore;
 use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Import\Store;
 use mindstellar\listingimport\Record\FileReader;
@@ -39,10 +37,6 @@ final class Cli
         $commands['import:status'] = array(
             'summary'  => 'Show the latest import runs ([--limit=10])',
             'callback' => array(self::class, 'status'),
-        );
-        $commands['import:key:create'] = array(
-            'summary'  => 'Make an API key and print it once (--name= [--scopes=listings:write,runs:read] [--source=])',
-            'callback' => array(self::class, 'createKey'),
         );
 
         return $commands;
@@ -110,35 +104,6 @@ final class Cli
         if ($dry) {
             echo "* a dry run: nothing was changed.\n";
         }
-
-        return 0;
-    }
-
-    /**
-     * @param array<string,mixed> $args
-     *
-     * @return int
-     */
-    public static function createKey(array $args): int
-    {
-        $name = trim((string)($args['name'] ?? ''));
-        if ($name === '') {
-            return self::fail("Name the key: --name=\"Partner site\"\n");
-        }
-        $scopes = array_values(array_intersect(
-            KeyStore::SCOPES,
-            array_map('trim', explode(',', (string)($args['scopes'] ?? KeyStore::SCOPE_WRITE)))
-        ));
-        if ($scopes === array()) {
-            return self::fail('Give at least one of: ' . implode(', ', KeyStore::SCOPES) . "\n");
-        }
-        $source = Keys::pushSource((int)($args['source'] ?? 0));
-        if ($source === null) {
-            return self::fail("Add a push source first; a key imports into one.\n");
-        }
-        $made = Keys::store()->create($name, $scopes, $source);
-        echo "Key made. It is shown once; keep it safe.\n\n  " . $made['token'] . "\n\n";
-        echo 'Permissions: ' . implode(', ', $scopes) . "\n";
 
         return 0;
     }

@@ -11,243 +11,173 @@
 
 namespace mindstellar\listingimport;
 
-use mindstellar\listingimport\Auth\DbKeyRepository;
-use mindstellar\listingimport\Auth\FailureCounter;
-use mindstellar\listingimport\Auth\KeyStore;
-use mindstellar\listingimport\Http\Request;
+use mindstellar\api\ApiProblem;
+use mindstellar\api\auth\Credential;
+use mindstellar\api\Request;
+use mindstellar\api\Response;
 use mindstellar\listingimport\Import\Batch;
-use mindstellar\listingimport\Import\CoreListings;
-use mindstellar\listingimport\Import\Listings;
-use mindstellar\listingimport\Import\DbStore;
 use mindstellar\listingimport\Import\Importer;
+use mindstellar\listingimport\Import\Listings;
+use mindstellar\listingimport\Import\Source;
 use mindstellar\listingimport\Import\Store;
-use mindstellar\listingimport\Http\Response;
-use mindstellar\security\SigningKey;
 
 /**
- * The REST API under /api/v1/. Every request arrives on one route hook and is sent to a
- * handler by method and path. Everything but ping needs a key with the right scope.
+ * The endpoints under /api/v1/ext/listing-import/. Core's API checks the key, its scope and
+ * its rate limit before a handler runs; a handler imports into the source the key is linked to.
  */
 final class Api
 {
-    /**
-     * method path => [handler, scope]. {id} is a number and {ext} an external id, which core has
-     * already decoded and so cannot hold a slash; a null scope is open to anyone.
-     */
-    public const ROUTES = array(
-        'GET ping'              => array('ping', null),
-        'GET openapi.json'      => array('openapi', null),
-        'POST listings'         => array('createListing', KeyStore::SCOPE_WRITE),
-        'POST listings:batch'   => array('createBatch', KeyStore::SCOPE_WRITE),
-        'GET listings/{ext}'    => array('showListing', KeyStore::SCOPE_WRITE),
-        'PUT listings/{ext}'    => array('putListing', KeyStore::SCOPE_WRITE),
-        'DELETE listings/{ext}' => array('deleteListing', KeyStore::SCOPE_DELETE),
-        'GET runs/{id}'         => array('showRun', KeyStore::SCOPE_RUNS),
-    );
+    public const WRITE  = 'ext:listing-import:write';
+    public const DELETE = 'ext:listing-import:delete';
+    public const RUNS   = 'ext:listing-import:runs';
 
-    private KeyStore $keys;
+    private const BASE = 'ext/listing-import/';
 
-    private FailureCounter $failures;
+    private const TAG = 'Listing import';
 
-    private int $perMinute;
-
-    private Importer $importer;
-
-    private Store $store;
-
-    private Batch $batch;
-
-    private Listings $listings;
-
-    /**
-     * @param KeyStore       $keys
-     * @param FailureCounter $failures
-     * @param int            $perMinute requests a key may send each minute
-     * @param Importer       $importer
-     * @param Store          $store
-     * @param Batch          $batch
-     * @param Listings       $listings
-     */
     public function __construct(
-        KeyStore $keys,
-        FailureCounter $failures,
-        int $perMinute,
-        Importer $importer,
-        Store $store,
-        Batch $batch,
-        Listings $listings
+        private Importer $importer,
+        private Store $store,
+        private Batch $batch,
+        private Listings $listings
     ) {
-        $this->listings  = $listings;
-        $this->batch     = $batch;
-        $this->keys      = $keys;
-        $this->failures  = $failures;
-        $this->perMinute = max(1, $perMinute);
-        $this->importer  = $importer;
-        $this->store     = $store;
     }
 
     /**
-     * Answer the current request and stop.
+     * The plugin's scopes, for the `api_scopes` filter. Only admin keys may hold them.
      *
-     * @return void
+     * @return array<string,array{description:string,audience:string}>
      */
-    public static function handle(): void
+    public static function scopes(): array
     {
-        $store = new DbStore();
-        $api   = new self(
-            new KeyStore(new DbKeyRepository(), SigningKey::get()),
-            new FailureCounter(),
-            (int)(osc_get_preference('rate_limit', Plugin::PAGE) ?: 60),
-            Plugin::importer(),
-            $store,
-            Plugin::batch(),
-            new CoreListings()
+        return array(
+            self::WRITE  => array('description' => __('Listing import: add, update and read listings', 'listing-import'), 'audience' => 'admin'),
+            self::DELETE => array('description' => __('Listing import: delete listings', 'listing-import'), 'audience' => 'admin'),
+            self::RUNS   => array('description' => __('Listing import: read import results', 'listing-import'), 'audience' => 'admin'),
         );
-        try {
-            $response = $api->dispatch(Request::fromGlobals());
-        } catch (\Throwable $e) {
-            error_log('listing-import: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
-            $response = Response::error(500, 'server_error', 'The request could not be handled.');
-        }
-        $response->send();
     }
 
     /**
-     * The answer for one request.
+     * 'METHOD path' => route spec, for osc_api_register_route(). The handlers build the Api
+     * only when a request reaches them.
      *
-     * @param Request $request
+     * @param callable $make returns the Api
      *
-     * @return Response
+     * @return array<string,array<string,mixed>>
      */
-    public function dispatch(Request $request): Response
+    public static function routes(callable $make): array
     {
-        [$route, $args] = $this->match($request->method, $request->path);
-        if ($route === null) {
-            $allowed = $this->methodsFor($request->path);
+        $handler = static fn (string $method): \Closure
+            => static fn (Request $request, Credential $credential, array $args): Response
+                => $make()->$method($request, $credential, $args);
+        $record  = array('type' => 'object');
+        $problem = array('type' => 'object');
+        $problems = array(
+            401 => $problem,
+            403 => $problem,
+            404 => $problem,
+            409 => $problem,
+            422 => $problem,
+        );
 
-            return $allowed === array()
-                ? Response::error(404, 'not_found', 'No such endpoint.')
-                : self::notAllowed($allowed);
-        }
-
-        [$handler, $scope] = $route;
-        if ($scope !== null) {
-            // A locked-out address still gets through with a good key: behind a proxy every
-            // client shares one address, and a stranger's bad guesses must not stop them.
-            $key = $this->keys->authenticate($request->authorization, $scope, $request->ip);
-            if ($key instanceof Response) {
-                if ($key->status !== 401) {
-                    return $key;
-                }
-                if ($this->failures->exceeded()) {
-                    return Response::error(429, 'rate_limited', 'Too many failed attempts from this address. Try again later.');
-                }
-                $this->failures->record();
-
-                return $key;
-            }
-            $limited = $this->keys->throttle((int)$key['pk_i_id'], $this->perMinute);
-            if ($limited !== null) {
-                return $limited;
-            }
-        }
-
-        return $this->$handler($request, $key ?? null, $args);
-    }
-
-    /**
-     * @return Response
-     */
-    private function ping(Request $request, ?array $key): Response
-    {
-        return Response::ok(array('plugin' => 'listing-import', 'version' => Plugin::VERSION));
+        return array(
+            'POST ' . self::BASE . 'listings' => array(
+                'handler'   => $handler('createListing'),
+                'auth'      => 'admin',
+                'scope'     => self::WRITE,
+                'tags'      => array(self::TAG),
+                'summary'   => 'Import one record',
+                'body'      => $record,
+                'responses' => array(200 => array('type' => 'object'), 201 => array('type' => 'object')) + $problems,
+            ),
+            'POST ' . self::BASE . 'listings:batch' => array(
+                'handler'   => $handler('createBatch'),
+                'auth'      => 'admin',
+                'scope'     => self::WRITE,
+                'tags'      => array(self::TAG),
+                'summary'   => 'Import up to ' . Batch::MAX_RECORDS . ' records in the background',
+                'description' => 'More than ' . Batch::MAX_RECORDS . ' records is refused with 413.',
+                'body'      => array(
+                    'type'       => 'object',
+                    'required'   => array('records'),
+                    'properties' => array('records' => array('type' => 'array', 'minItems' => 1)),
+                ),
+                'responses' => array(202 => array('type' => 'object'), 413 => $problem) + $problems,
+            ),
+            'GET ' . self::BASE . 'listings/{external_id}' => array(
+                'handler'   => $handler('showListing'),
+                'auth'      => 'admin',
+                'scope'     => self::WRITE,
+                'tags'      => array(self::TAG),
+                'summary'   => 'The listing an external id became',
+                'responses' => array(200 => array('type' => 'object')) + $problems,
+            ),
+            'PUT ' . self::BASE . 'listings/{external_id}' => array(
+                'handler'   => $handler('putListing'),
+                'auth'      => 'admin',
+                'scope'     => self::WRITE,
+                'tags'      => array(self::TAG),
+                'summary'   => 'Create or replace the listing for an external id',
+                'body'      => $record,
+                'responses' => array(200 => array('type' => 'object'), 201 => array('type' => 'object')) + $problems,
+            ),
+            'DELETE ' . self::BASE . 'listings/{external_id}' => array(
+                'handler'   => $handler('deleteListing'),
+                'auth'      => 'admin',
+                'scope'     => self::DELETE,
+                'tags'      => array(self::TAG),
+                'summary'   => 'Delete the listing for an external id',
+                'responses' => array(200 => array('type' => 'object')) + $problems,
+            ),
+            'GET ' . self::BASE . 'runs/{id}' => array(
+                'handler'   => $handler('showRun'),
+                'auth'      => 'admin',
+                'scope'     => self::RUNS,
+                'tags'      => array(self::TAG),
+                'summary'   => 'How an import run went',
+                'responses' => array(200 => array('type' => 'object')) + $problems,
+            ),
+        );
     }
 
     /**
      * Import one record into the key's source.
-     *
-     * @param Request             $request
-     * @param array<string,mixed> $key the key the request was made with
-     *
-     * @return Response
      */
-    private function createListing(Request $request, array $key): Response
+    public function createListing(Request $request, Credential $credential, array $args = array()): Response
+    {
+        return $this->importOne($request->json(), $credential);
+    }
+
+    /**
+     * Create or replace the listing for an external id with the whole record.
+     */
+    public function putListing(Request $request, Credential $credential, array $args): Response
     {
         $record = $request->json();
-
-        return $record instanceof Response ? $record : $this->importOne($record, $key);
-    }
-
-    /**
-     * @param array<string,mixed> $record
-     * @param array<string,mixed> $key
-     *
-     * @return Response
-     */
-    private function importOne(array $record, array $key): Response
-    {
-        $source = $this->source($key);
-        if ($source instanceof Response) {
-            return $source;
+        if (isset($record['external_id']) && (string)$record['external_id'] !== $args['external_id']) {
+            throw ApiProblem::of('validation_failed', 'The external_id in the body is not the one in the address.', array(
+                'errors' => array(array('pointer' => '/external_id', 'code' => 'id_mismatch', 'message' => 'must match the address', 'in' => 'body')),
+            ));
         }
+        $record['external_id'] = $args['external_id'];
 
-        $runId  = $this->store->startRun($source->id, 'push', false);
-        $result = $this->importer->import($source, $record, $runId);
-        $this->store->finishRun($runId, array($result['status'] => 1), 'Key ' . $key['s_key_id']);
-
-        if ($result['status'] === Importer::FAILED) {
-            $response                          = Response::error(422, 'not_imported', 'The record was not imported; see fields.');
-            $response->body['error']['fields'] = $result['errors'];
-        } else {
-            $response = Response::ok(array(
-                'status'      => $result['status'],
-                'external_id' => $result['external_id'],
-                'item_id'     => $result['item_id'],
-                'run_id'      => $runId,
-            ), $result['status'] === Importer::CREATED ? 201 : 200);
-        }
-        if ($result['warnings'] !== array()) {
-            $response->body['warnings'] = $result['warnings'];
-        }
-
-        return $response;
-    }
-
-    /**
-     * The API described in OpenAPI 3.1, for client generators and API tools.
-     *
-     * @return Response
-     */
-    private function openapi(): Response
-    {
-        $spec = json_decode((string)file_get_contents(dirname(__DIR__) . '/openapi.json'), true);
-
-        return new Response(200, is_array($spec) ? $spec : array());
+        return $this->importOne($record, $credential);
     }
 
     /**
      * Where one record stands: the listing it became, and whether it is still live.
-     *
-     * @param Request             $request
-     * @param array<string,mixed> $key
-     * @param array<int,string>   $args the external id
-     *
-     * @return Response
      */
-    private function showListing(Request $request, array $key, array $args): Response
+    public function showListing(Request $request, Credential $credential, array $args): Response
     {
-        $source = $this->source($key);
-        if ($source instanceof Response) {
-            return $source;
-        }
-        $mapped = $this->store->mapped($source->id, $args[0]);
+        $source = $this->source($credential);
+        $mapped = $this->store->mapped($source->id, $args['external_id']);
         $itemId = $this->liveItem($mapped);
         if ($itemId === null) {
-            return Response::error(404, 'not_found', 'No listing for this external id.');
+            throw ApiProblem::of('not_found', 'No listing for this external id.');
         }
 
         return Response::ok(array(
-            'external_id' => $args[0],
+            'external_id' => $args['external_id'],
             'item_id'     => $itemId,
             'status'      => ($mapped['e_status'] ?? 'active') === 'retired' ? 'removed_from_feed' : 'active',
             'url'         => $this->listings->url($itemId),
@@ -257,101 +187,50 @@ final class Api
     }
 
     /**
-     * Create or replace the listing for an external id with the whole record.
-     *
-     * @param Request             $request
-     * @param array<string,mixed> $key
-     * @param array<int,string>   $args the external id
-     *
-     * @return Response
-     */
-    private function putListing(Request $request, array $key, array $args): Response
-    {
-        $record = $request->json();
-        if ($record instanceof Response) {
-            return $record;
-        }
-        if (isset($record['external_id']) && (string)$record['external_id'] !== $args[0]) {
-            return Response::error(422, 'id_mismatch', 'The external_id in the body is not the one in the address.');
-        }
-        $record['external_id'] = $args[0];
-
-        return $this->importOne($record, $key);
-    }
-
-    /**
      * Delete the listing for an external id. The owner asked, so it really is deleted.
-     *
-     * @param Request             $request
-     * @param array<string,mixed> $key
-     * @param array<int,string>   $args the external id
-     *
-     * @return Response
      */
-    private function deleteListing(Request $request, array $key, array $args): Response
+    public function deleteListing(Request $request, Credential $credential, array $args): Response
     {
-        $source = $this->source($key);
-        if ($source instanceof Response) {
-            return $source;
-        }
-        $itemId = $this->liveItem($this->store->mapped($source->id, $args[0]));
+        $source = $this->source($credential);
+        $itemId = $this->liveItem($this->store->mapped($source->id, $args['external_id']));
         if ($itemId === null) {
-            return Response::error(404, 'not_found', 'No listing for this external id.');
+            throw ApiProblem::of('not_found', 'No listing for this external id.');
         }
         if (!$this->listings->delete($itemId)) {
-            return Response::error(500, 'not_deleted', 'The listing could not be deleted.');
+            throw ApiProblem::of('server_error', 'The listing could not be deleted.');
         }
-        $this->store->forgetRecord($source->id, $args[0]);
+        $this->store->forgetRecord($source->id, $args['external_id']);
 
-        return Response::ok(array('external_id' => $args[0], 'item_id' => $itemId, 'deleted' => true));
+        return Response::ok(array('external_id' => $args['external_id'], 'item_id' => $itemId, 'deleted' => true));
     }
 
     /**
      * Start a run for up to MAX_RECORDS records and queue them. The answer is at once; the
-     * run's page says how it went.
-     *
-     * @param Request             $request
-     * @param array<string,mixed> $key
-     *
-     * @return Response
+     * run's endpoint says how it went.
      */
-    private function createBatch(Request $request, array $key): Response
+    public function createBatch(Request $request, Credential $credential, array $args = array()): Response
     {
-        $body = $request->json();
-        if ($body instanceof Response) {
-            return $body;
-        }
-        $records = $body['records'] ?? null;
+        $records = $request->json()['records'] ?? null;
         if (!is_array($records) || $records === array() || array_keys($records) !== range(0, count($records) - 1)) {
-            return Response::error(422, 'invalid_batch', 'Send {"records": [...]} with at least one record.');
+            throw ApiProblem::of('validation_failed', 'Send {"records": [...]} with at least one record.');
         }
         if (count($records) > Batch::MAX_RECORDS) {
-            return Response::error(413, 'too_many_records', 'At most ' . Batch::MAX_RECORDS . ' records per batch.');
+            throw ApiProblem::of('too_large', 'At most ' . Batch::MAX_RECORDS . ' records per batch.');
         }
-        $source = $this->source($key);
-        if ($source instanceof Response) {
-            return $source;
-        }
-        $runId = $this->batch->queue($source, $records, 'push');
+        $runId = $this->batch->queue($this->source($credential), $records, 'push');
 
         return Response::ok(array('run_id' => $runId, 'records' => count($records), 'status' => 'queued'), 202);
     }
 
     /**
      * How a run went. A key sees only runs of its own source.
-     *
-     * @param Request             $request
-     * @param array<string,mixed> $key
-     * @param array<int,string>   $args the run id
-     *
-     * @return Response
      */
-    private function showRun(Request $request, array $key, array $args): Response
+    public function showRun(Request $request, Credential $credential, array $args): Response
     {
-        $run    = $this->store->run((int)$args[0]);
-        $source = $this->source($key);
-        if ($run === null || $source instanceof Response || (int)$run['fk_i_source_id'] !== $source->id) {
-            return Response::error(404, 'not_found', 'No such run.');
+        $run    = $this->store->run((int)$args['id']);
+        $source = $this->source($credential);
+        if ($run === null || (int)$run['fk_i_source_id'] !== $source->id) {
+            throw ApiProblem::of('not_found', 'No such run.');
         }
         $counts = array();
         foreach (array('created', 'updated', 'unchanged', 'retired', 'failed') as $name) {
@@ -370,11 +249,37 @@ final class Api
     }
 
     /**
+     * @param array<string,mixed> $record
+     */
+    private function importOne(array $record, Credential $credential): Response
+    {
+        $source = $this->source($credential);
+        $runId  = $this->store->startRun($source->id, 'push', false);
+        $result = $this->importer->import($source, $record, $runId);
+        $this->store->finishRun($runId, array($result['status'] => 1), 'Key ' . $credential->id());
+
+        if ($result['status'] === Importer::FAILED) {
+            $errors = array();
+            foreach ($result['errors'] as $field => $message) {
+                $errors[] = array('pointer' => '/' . str_replace('.', '/', (string)$field), 'message' => (string)$message, 'in' => 'body');
+            }
+
+            throw ApiProblem::of('not_imported', 'The record was not imported; see errors.', array('errors' => $errors));
+        }
+        $response = Response::ok(array(
+            'status'      => $result['status'],
+            'external_id' => $result['external_id'],
+            'item_id'     => $result['item_id'],
+            'run_id'      => $runId,
+        ), $result['status'] === Importer::CREATED ? 201 : 200);
+
+        return $result['warnings'] === array() ? $response : $response->withBodyMember('warnings', $result['warnings']);
+    }
+
+    /**
      * The listing a mapped record points at, while it is still on the site.
      *
      * @param array<string,mixed>|null $mapped
-     *
-     * @return int|null
      */
     private function liveItem(?array $mapped): ?int
     {
@@ -384,80 +289,16 @@ final class Api
     }
 
     /**
-     * The source a key imports into.
-     *
-     * @param array<string,mixed> $key
-     *
-     * @return \mindstellar\listingimport\Import\Source|Response
+     * The source the key is linked to. A key linked to none, or to one that is off, is refused
+     * rather than sent to another source.
      */
-    private function source(array $key)
+    private function source(Credential $credential): Source
     {
-        $source = $this->store->source((int)$key['fk_i_source_id']);
-
-        return $source ?? Response::error(409, 'no_source', 'This key imports into a source that is missing or switched off.');
-    }
-
-    /**
-     * The route for a method and path, and what its {id} matched.
-     *
-     * @param string $method
-     * @param string $path
-     *
-     * @return array{0: array{0: string, 1: ?string}|null, 1: array<int,string>}
-     */
-    private function match(string $method, string $path): array
-    {
-        foreach (self::ROUTES as $route => $spec) {
-            [$routeMethod, $pattern] = explode(' ', $route, 2);
-            if ($routeMethod === $method && preg_match(self::regex($pattern), $path, $m)) {
-                return array($spec, array_slice($m, 1));
-            }
+        $source = $this->store->sourceForKey((int)$credential->id());
+        if ($source === null) {
+            throw ApiProblem::of('conflict', 'This key is not linked to an import source, or its source is switched off. Link it under Plugins > Listing import > Sources.');
         }
 
-        return array(null, array());
-    }
-
-    /**
-     * A route's path as a regex; {id} matches a number.
-     *
-     * @param string $pattern
-     *
-     * @return string
-     */
-    private static function regex(string $pattern): string
-    {
-        return '#^' . str_replace(array('\\{id\\}', '\\{ext\\}'), array('([0-9]+)', '([^/]+)'), preg_quote($pattern, '#')) . '$#';
-    }
-
-    /**
-     * @param string $path
-     *
-     * @return array<int,string> the methods this path answers
-     */
-    private function methodsFor(string $path): array
-    {
-        $methods = array();
-        foreach (array_keys(self::ROUTES) as $route) {
-            [$method, $pattern] = explode(' ', $route, 2);
-            if (preg_match(self::regex($pattern), $path)) {
-                $methods[] = $method;
-            }
-        }
-
-        return $methods;
-    }
-
-    /**
-     * @param array<int,string> $allowed
-     *
-     * @return Response
-     */
-    private static function notAllowed(array $allowed): Response
-    {
-        $list                       = implode(', ', $allowed);
-        $response                   = Response::error(405, 'method_not_allowed', 'Use ' . $list . ' for this endpoint.');
-        $response->headers['Allow'] = $list;
-
-        return $response;
+        return $source;
     }
 }

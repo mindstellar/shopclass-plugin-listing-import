@@ -35,6 +35,16 @@ final class DbStore implements Store
         return $row === null ? null : Source::fromRow($row);
     }
 
+    public function sourceForKey(int $credentialId): ?Source
+    {
+        $row = osc_db_select_one(
+            'SELECT * FROM ' . $this->t('source') . " WHERE e_kind = 'push' AND b_enabled = 1 AND FIND_IN_SET(?, s_key_ids) > 0 ORDER BY pk_i_id LIMIT 1",
+            array((string)$credentialId)
+        );
+
+        return $row === null ? null : Source::fromRow($row);
+    }
+
     public function mapped(int $sourceId, string $externalId): ?array
     {
         return osc_db_select_one(
