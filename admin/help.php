@@ -9,7 +9,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-use mindstellar\listingimport\Admin\Keys;
 use mindstellar\listingimport\Admin\Sources;
 use mindstellar\listingimport\Plugin;
 
@@ -17,7 +16,8 @@ if (!defined('ABS_PATH')) {
     exit('Direct access is not allowed.');
 }
 
-$apiUrl = dirname(osc_route_url(Plugin::ROUTE, array('path' => 'ping')));
+$apiUrl  = osc_api_url('ext/listing-import');
+$keysUrl = osc_admin_base_url(true) . '?page=settings&action=api';
 $link   = static fn (string $url, string $text): string => '<a href="' . osc_esc_html($url) . '">' . osc_esc_html($text) . '</a>';
 $code   = static function (string $text): void {
     echo '<pre><code>' . osc_esc_html($text) . '</code></pre>';
@@ -44,7 +44,7 @@ osc_admin_form_section(__('How it works', 'listing-import'));
     <p><?php _e('Listings arrive in two ways. A partner sends them to this site\'s API with a key, or this site fetches a feed on a schedule. Each way is a source, with its own defaults and rules.', 'listing-import'); ?></p>
     <p><?php _e('Every listing is saved the way a posted one is: validation, spam checks, custom fields and expiry apply. A record keeps the same listing across imports, by its external id. The same record sent again changes nothing.', 'listing-import'); ?></p>
     <p><?php echo $link(osc_route_admin_url(Sources::ROUTE), __('Sources', 'listing-import')); ?> &middot;
-        <?php echo $link(osc_route_admin_url(Keys::ROUTE), __('API keys', 'listing-import')); ?> &middot;
+        <?php echo $link($keysUrl, __('API keys', 'listing-import')); ?> &middot;
         <?php echo $link(osc_settings_page_url(Plugin::PAGE), __('Settings', 'listing-import')); ?></p>
 <?php
 
@@ -53,7 +53,7 @@ osc_admin_form_section(__('Send listings to the API', 'listing-import'), array(
     'intro'  => sprintf(__('The API lives at %s.', 'listing-import'), $apiUrl),
 ), array('spaced' => true));
 ?>
-    <p><?php _e('Make a key under API keys and give it to the partner. It is shown once. Send it on every request:', 'listing-import'); ?></p>
+    <p><?php _e('Make an admin key under Settings > API with the Listing import permissions, then list its id on the push source it imports into (Sources > edit). A key listed on no source is refused. Give the key to the partner. It is shown once. Send it on every request:', 'listing-import'); ?></p>
     <?php $code('Authorization: Bearer <key>'); ?>
     <?php $table(array(__('Request', 'listing-import'), __('What it does', 'listing-import')), array(
         array('POST /listings', __('Import one record now.', 'listing-import')),
@@ -62,8 +62,8 @@ osc_admin_form_section(__('Send listings to the API', 'listing-import'), array(
         array('DELETE /listings/{external_id}', __('Delete that listing.', 'listing-import')),
         array('POST /listings:batch', __('Up to 200 records, imported in the background.', 'listing-import')),
         array('GET /runs/{id}', __('How a batch went.', 'listing-import')),
-        array('GET /openapi.json', __('The whole API as an OpenAPI file. No key needed.', 'listing-import')),
     )); ?>
+    <p><?php _e('The paths below are under the API address above. The site\'s whole API, this plugin included, is described at', 'listing-import'); ?> <code><?php echo osc_esc_html(osc_api_url('openapi.json')); ?></code>.</p>
     <p><?php _e('The smallest record. The external id is your own id: send it again and the same listing is updated. Always send the whole record; there is no partial update.', 'listing-import'); ?></p>
     <?php $code("{\n  \"external_id\": \"A-1001\",\n  \"title\": \"Blue bike\",\n  \"description\": \"A good bike, 21 gears.\",\n  \"category\": \"Vehicles > Bikes\"\n}"); ?>
 <?php
@@ -126,7 +126,7 @@ $code('{"data":{"external_id":"A-1001","item_id":294,"status":"active","url":"ht
 $code(sprintf("curl -X DELETE %1\$s/listings/A-1001 \\\n  -H \"Authorization: Bearer \$KEY\"", $apiUrl));
 $code('{"data":{"external_id":"A-1001","item_id":294,"deleted":true}}');
 ?>
-    <p><?php _e('Deleting needs a key with the Remove listings permission.', 'listing-import'); ?></p>
+    <p><?php _e('Deleting needs the Listing import: delete listings permission.', 'listing-import'); ?></p>
 <?php
 osc_admin_disclosure_close();
 
@@ -141,7 +141,7 @@ SH
 ?>
     <p><?php _e('Up to 200 records. It answers 202 at once; the site\'s background jobs import them.', 'listing-import'); ?></p>
     <?php $code('{"data":{"run_id":23,"records":2,"status":"queued"}}'); ?>
-    <p><?php _e('Ask how the run went. It needs a key with the Read import results permission.', 'listing-import'); ?></p>
+    <p><?php _e('Ask how the run went. It needs the Listing import: read import results permission.', 'listing-import'); ?></p>
     <?php $code(sprintf("curl %1\$s/runs/23 \\\n  -H \"Authorization: Bearer \$KEY\"", $apiUrl)); ?>
     <?php $code('{"data":{"run_id":23,"status":"finished","records":2,"counts":{"created":1,"updated":0,"unchanged":0,"retired":0,"failed":1},"started_at":"2026-09-25 05:33:06","finished_at":"2026-09-25 05:33:07","failures":[{"external_id":"A-1002","errors":{"description":"Required."}}]}}'); ?>
 <?php
@@ -149,8 +149,8 @@ osc_admin_disclosure_close();
 
 osc_admin_disclosure_open(__('When a request is refused', 'listing-import'));
 ?>
-    <p><?php _e('Every error has the same shape. For a record, fields says what is wrong with each one, so it can be fixed in one go.', 'listing-import'); ?></p>
-    <?php $code('{"error":{"code":"not_imported","message":"The record was not imported; see fields.","fields":{"description":"Required."}}}'); ?>
+    <p><?php _e('Errors follow RFC 9457 (application/problem+json), as the rest of the API does. For a record, errors says what is wrong with each field, so it can be fixed in one go.', 'listing-import'); ?></p>
+    <?php $code('{"type":"https://mindstellar.com/docs/developers/api/errors/#not_imported","title":"The record was not imported.","status":422,"detail":"The record was not imported; see errors.","code":"not_imported","errors":[{"pointer":"/description","message":"Required.","in":"body"}]}'); ?>
 <?php
 osc_admin_disclosure_close();
 
@@ -158,18 +158,18 @@ osc_admin_form_section(__('Answers and limits', 'listing-import'), array('spaced
 $table(array(__('Status', 'listing-import'), __('Code', 'listing-import'), __('Why', 'listing-import')), array(
     array('400', 'invalid_json', __('The body is not JSON.', 'listing-import')),
     array('401', 'unauthorized', __('No key, or a wrong one.', 'listing-import')),
-    array('403', 'forbidden', __('The key lacks the permission.', 'listing-import')),
+    array('403', 'forbidden, insufficient_scope', __('The key is not an admin key, or lacks the permission.', 'listing-import')),
     array('404', 'not_found', __('No such endpoint, listing or run.', 'listing-import')),
     array('405', 'method_not_allowed', __('The endpoint does not take that method.', 'listing-import')),
-    array('409', 'no_source', __('The key\'s source is missing or switched off.', 'listing-import')),
-    array('413', 'too_large, too_many_records', __('A body over 1 MB, or more than 200 records.', 'listing-import')),
+    array('409', 'conflict', __('The key is linked to no source, or its source is switched off.', 'listing-import')),
+    array('413', 'too_large', __('A body over 1 MB, or more than 200 records.', 'listing-import')),
     array('415', 'unsupported_media_type', __('Send Content-Type: application/json.', 'listing-import')),
-    array('422', 'not_imported, invalid_batch, id_mismatch', __('The record is wrong. fields says where.', 'listing-import')),
-    array('429', 'rate_limited', __('Too many requests. Wait for the Retry-After seconds.', 'listing-import')),
-    array('500', 'not_deleted, server_error', __('Something failed on the site. Its error log says what.', 'listing-import')),
+    array('422', 'not_imported, validation_failed', __('The record is wrong. errors says where.', 'listing-import')),
+    array('429', 'rate_limited, too_many_failures', __('Too many requests. Wait for the Retry-After seconds.', 'listing-import')),
+    array('500', 'server_error', __('Something failed on the site. Its error log says what.', 'listing-import')),
 ));
 ?>
-    <p><?php _e('Each key may send a set number of requests a minute; change it under Settings. An address that sends a wrong key 20 times in 15 minutes is refused for a while. The whole API is described in openapi.json, which needs no key.', 'listing-import'); ?></p>
+    <p><?php _e('Request limits, and the lockout of an address that keeps sending a wrong key, are the API settings of the site under Settings > API.', 'listing-import'); ?></p>
 <?php
 
 osc_admin_form_section(__('Fetch a feed', 'listing-import'), array('spaced' => true));
@@ -185,7 +185,7 @@ osc_admin_form_section(__('Import a file', 'listing-import'), array('spaced' => 
 <?php
 
 osc_admin_form_section(__('Command line', 'listing-import'), array('spaced' => true));
-$code("php oc-cli.php import:run --file=records.json --dry-run\nphp oc-cli.php import:run --file=records.json\nphp oc-cli.php import:status\nphp oc-cli.php import:key:create --name=\"Partner site\"");
+$code("php oc-cli.php import:run --file=records.json --dry-run\nphp oc-cli.php import:run --file=records.json\nphp oc-cli.php import:status\nphp oc-cli.php api:key:create --admin=<username> --name=\"Partner site\" --scopes=ext:listing-import:write,ext:listing-import:runs");
 ?>
     <p><?php _e('Batches and feeds run with the site\'s background jobs, so the site\'s cron must run.', 'listing-import'); ?></p>
 <?php

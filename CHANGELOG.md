@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+### Breaking
+- Needs Shopclass 7.0. The endpoints moved under `/api/v1/ext/listing-import/`: `/api/v1/listings...` becomes `/api/v1/ext/listing-import/listings...`, `/api/v1/runs/{id}` becomes `/api/v1/ext/listing-import/runs/{id}`.
+- Plugin API keys are gone. Make an admin key under **Settings → API** with the `ext:listing-import:write`, `:delete` or `:runs` permission, then list its id on a push source.
+- `GET /api/v1/ping` and `GET /api/v1/openapi.json` are gone; the site's own `GET /api/v1/openapi.json` lists these endpoints too.
+- Errors are RFC 9457 problems: `errors` with a JSON pointer per field replaces `error.fields`.
+- `import:key:create` is gone; use `api:key:create`. The plugin's request-per-minute setting is gone; limits are under **Settings → API**.
+
+### Changed
+- The endpoints, keys, scopes, request limits and errors are core's. Import, runs, the owner rule, image limits and address checks work as before.
+
+### New
+- A push source lists the key ids that import into it; a key linked to no source is refused with 409.
+
 ## 0.2.0
 
 ### New

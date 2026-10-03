@@ -10,12 +10,12 @@ moderation, spam checks, listing limits and expiry.
 |---|---|
 | ![A feed source](assets/screenshot-2.png) | ![Feed preview](assets/screenshot-3.png) |
 | A feed source | Preview a feed before it changes anything |
-| ![API keys](assets/screenshot-4.png) | ![Help](assets/screenshot-5.png) |
-| API keys with their own permissions | A help screen with the API guide |
+| ![Help](assets/screenshot-4.png) | |
+| A help screen with the API guide | |
 
 ## Requirements
 
-- ShopClass 6.4.0 or later
+- ShopClass 7.0 or later
 - PHP 8.0 or later
 
 ## Install
@@ -29,31 +29,24 @@ php oc-cli.php market:install listing-import
 
 ## Check that it works
 
-```bash
-curl https://example.com/api/v1/ping
-```
-
-With friendly URLs off, use the query form:
-
-```bash
-curl "https://example.com/index.php?page=route&route=listing-import-api&path=ping"
-```
-
-Both answer:
-
-```json
-{"data":{"plugin":"listing-import","version":"0.2.0"}}
-```
+The plugin's endpoints are part of the site's REST API, under `/api/v1/ext/listing-import/`.
+The API must be switched on under **Settings → API**. The site describes every endpoint, this
+plugin's included, at `/api/v1/openapi.json`.
 
 ## Make a key
 
-**Plugins → Listing import → API keys → Add a key.** Pick its permissions:
+Keys are the site's own. Under **Settings → API**, make an admin key and tick the Listing
+import permissions:
 
 | Permission | Lets the key |
 |---|---|
-| `listings:write` | import listings, and read where one stands |
-| `listings:delete` | delete a listing it imported |
-| `runs:read` | read how a batch went |
+| `ext:listing-import:write` | import listings, and read where one stands |
+| `ext:listing-import:delete` | delete a listing it imported |
+| `ext:listing-import:runs` | read how a batch went |
+
+Then link the key to the push source it imports into: **Plugins → Listing import → Sources**,
+edit the source and list the key's id under *API key ids*. A key linked to no source is refused.
+A key sees only its own source's listings and runs.
 
 The key is shown once. Keep it safe. Send it on every request:
 
@@ -64,20 +57,21 @@ Authorization: Bearer <key>
 Or make one from the command line:
 
 ```bash
-php oc-cli.php import:key:create --name="Partner site" --scopes=listings:write,runs:read
+php oc-cli.php api:key:create --admin=<username> --name="Partner site" --scopes=ext:listing-import:write,ext:listing-import:runs
 ```
+
+Only admin keys can hold these permissions. Request limits are the site's, under **Settings → API**.
 
 ## Send listings
 
 | Request | What it does |
 |---|---|
-| `POST /api/v1/listings` | Import one record now. |
-| `PUT /api/v1/listings/{external_id}` | The same, with the id in the address. |
-| `GET /api/v1/listings/{external_id}` | The listing this id became, its address, and if it is live. |
-| `DELETE /api/v1/listings/{external_id}` | Delete that listing. |
-| `POST /api/v1/listings:batch` | Up to 200 records, imported in the background. |
-| `GET /api/v1/runs/{id}` | How a batch went. |
-| `GET /api/v1/openapi.json` | The whole API as an OpenAPI 3.1 file. No key needed. |
+| `POST /api/v1/ext/listing-import/listings` | Import one record now. |
+| `PUT /api/v1/ext/listing-import/listings/{external_id}` | The same, with the id in the address. |
+| `GET /api/v1/ext/listing-import/listings/{external_id}` | The listing this id became, its address, and if it is live. |
+| `DELETE /api/v1/ext/listing-import/listings/{external_id}` | Delete that listing. |
+| `POST /api/v1/ext/listing-import/listings:batch` | Up to 200 records, imported in the background. |
+| `GET /api/v1/ext/listing-import/runs/{id}` | How a batch went. |
 
 The smallest record:
 
@@ -117,7 +111,7 @@ A field the plugin does not know comes back as a warning. The record is still im
 A batch answers at once with a run id:
 
 ```bash
-curl -X POST https://example.com/api/v1/listings:batch \
+curl -X POST https://example.com/api/v1/ext/listing-import/listings:batch \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"records": [ ... ]}'
 ```
@@ -126,32 +120,32 @@ curl -X POST https://example.com/api/v1/listings:batch \
 {"data":{"run_id":42,"records":150,"status":"queued"}}
 ```
 
-The site's background jobs import the records. Check `GET /api/v1/runs/42` for the result.
+The site's background jobs import the records. Check `GET /api/v1/ext/listing-import/runs/42` for the result.
 
 ## Errors and limits
 
-Every error has the same shape:
+Errors follow RFC 9457 (`application/problem+json`), as the rest of the site's API does:
 
 ```json
-{"error":{"code":"not_imported","message":"The record was not imported; see fields.","fields":{"title":"Required."}}}
+{"type":"https://mindstellar.com/docs/developers/api/errors/#not_imported","title":"The record was not imported.","status":422,"detail":"The record was not imported; see errors.","code":"not_imported","errors":[{"pointer":"/title","message":"Required.","in":"body"}]}
 ```
 
 | Status | Code | Why |
 |---|---|---|
 | 400 | `invalid_json` | The body is not JSON. |
 | 401 | `unauthorized` | No key, or a wrong one. |
-| 403 | `forbidden` | The key lacks the permission. |
+| 403 | `forbidden`, `insufficient_scope` | The key is not an admin key, or lacks the permission. |
 | 404 | `not_found` | No such endpoint, listing or run. |
 | 405 | `method_not_allowed` | The endpoint does not take that method. |
-| 409 | `no_source` | The key's source is missing or switched off. |
-| 413 | `too_large`, `too_many_records` | Body over 1 MB, or more than 200 records. |
+| 409 | `conflict` | The key is linked to no source, or its source is switched off. |
+| 413 | `too_large` | Body over 1 MB, or more than 200 records. |
 | 415 | `unsupported_media_type` | Send `Content-Type: application/json`. |
-| 422 | `not_imported`, `invalid_batch`, `id_mismatch` | The record is wrong. `fields` says where. |
-| 429 | `rate_limited` | Too many requests. Wait for `Retry-After` seconds. |
-| 500 | `not_deleted`, `server_error` | Something failed on the site. The site's error log says what. |
+| 422 | `not_imported`, `validation_failed` | The record is wrong. `errors` says where. |
+| 429 | `rate_limited`, `too_many_failures` | Too many requests. Wait for `Retry-After` seconds. |
+| 500 | `server_error` | Something failed on the site. The site's error log says what. |
 
-Each key may send 60 requests a minute. Change it on the plugin's settings page. An address
-that sends a wrong key 20 times in 15 minutes is refused for a while.
+Request limits, and the lockout of an address that keeps sending a wrong key, are the site's
+API settings.
 
 The site's own rules apply to every listing: moderation, spam checks, listing limits, expiry.
 
