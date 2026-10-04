@@ -16,23 +16,26 @@ harness_core();
 harness_plugin();
 
 use mindstellar\api\ApiSettings;
+use mindstellar\api\auth\AccessTokens;
+use mindstellar\api\auth\AdminRows;
 use mindstellar\api\auth\ApiKeys;
 use mindstellar\api\auth\Authenticator;
-use mindstellar\api\auth\Authorizer;
 use mindstellar\api\auth\CredentialKind;
 use mindstellar\api\auth\CredentialStore;
 use mindstellar\api\auth\FailureCounter;
 use mindstellar\api\auth\KeyOwner;
 use mindstellar\api\auth\Scopes;
 use mindstellar\api\auth\StoredKey;
-use mindstellar\api\CachePolicy;
+use mindstellar\api\auth\UserRows;
 use mindstellar\api\Clock;
+use mindstellar\api\idempotency\Idempotency;
+use mindstellar\api\idempotency\IdempotencyRecord;
+use mindstellar\api\idempotency\IdempotencyStore;
 use mindstellar\api\Kernel;
-use mindstellar\api\RateLimiter;
-use mindstellar\api\RatePolicy;
+use mindstellar\api\ratelimit\RateLimiter;
 use mindstellar\api\Request;
-use mindstellar\api\Router;
-use mindstellar\api\Validator;
+use mindstellar\api\routing\Router;
+use mindstellar\api\schema\Validator;
 use mindstellar\listingimport\Api;
 
 if (!function_exists('__')) {
@@ -137,17 +140,31 @@ $rows     = new KeyRows();
 $keys     = new ApiKeys($rows, $scopes, $clock);
 $settings = new ApiSettings();
 $counts   = array();
+$nobody   = static fn (): ?array => null;
 $kernel   = new Kernel(
     $router,
-    new Authenticator($keys, new FailureCounter(static fn () => 0, static fn () => 1)),
-    new Authorizer(),
-    new RatePolicy($settings),
+    new Authenticator($keys, new FailureCounter(static fn () => 0, static fn () => 1), new AccessTokens($scopes, new UserRows($nobody))),
     new RateLimiter(static function (string $b, string $k, int $w) use (&$counts): int {
         return $counts[$b . '|' . $k] = ($counts[$b . '|' . $k] ?? 0) + 1;
     }, $clock),
     $validator,
-    new CachePolicy($settings->cacheMaxAge()),
-    $settings
+    $settings,
+    new UserRows($nobody),
+    new AdminRows($nobody),
+    new Idempotency(new class () implements IdempotencyStore {
+        public function claim(string $hash, string $fingerprint, int $now, int $expiresAt, int $lockTtl): ?IdempotencyRecord
+        {
+            return null;
+        }
+
+        public function complete(string $hash, int $status, string $response): void
+        {
+        }
+
+        public function release(string $hash): void
+        {
+        }
+    }, $clock)
 );
 $call = static fn (string $method, string $path, string $token = '', ?array $body = null, array $query = array()) => $kernel->handle(new Request(
     $method,
