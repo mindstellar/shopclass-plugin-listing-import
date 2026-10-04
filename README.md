@@ -171,6 +171,9 @@ fetch at once.
 A listing whose record leaves the feed is deactivated, not deleted. It comes back when the
 record returns. If most records in a fetch fail, nothing is deactivated.
 
+A listing you delete in the admin stays deleted until its record changes. Then it is created
+again.
+
 ## Import a file
 
 **Plugins → Listing import → Import a file.** Upload a JSON, NDJSON, CSV or RSS file, up to

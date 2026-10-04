@@ -15,6 +15,11 @@
 ### New
 - A push source lists the key ids that import into it; a key linked to no source is refused with 409.
 
+## 0.2.1
+
+### Fixed
+- A listing deleted in the admin stays deleted until its record changes; it was recreated on every import.
+
 ## 0.2.0
 
 ### New

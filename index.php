@@ -75,7 +75,7 @@ osc_add_filter('cli_commands', array(Cli::class, 'commands'));
 osc_add_hook('cron_hourly', array(Plugin::class, 'sweep'));
 osc_add_hook('cron_hourly', array(Plugin::class, 'schedule'));
 
-// A listing an admin deletes is forgotten, so its record makes a new one only when it changes.
+// A listing an admin deletes stays deleted until its record changes.
 osc_add_hook('before_delete_item', array(DbStore::class, 'forget'));
 
 // The import sources screens: the list, the declared editor, and a feed preview.

@@ -20,8 +20,8 @@ use mindstellar\listingimport\Resolve\Resolver;
  * listing it became.
  *
  * A record is known by its source and its external id. Sent again unchanged, it changes
- * nothing; sent changed, it updates the same listing. A listing an admin deleted is created
- * again only if the record changes.
+ * nothing; sent changed, it updates the same listing. A listing an admin deleted stays deleted
+ * until its record changes; then it is created again.
  */
 final class Importer
 {
@@ -94,6 +94,15 @@ final class Importer
         $itemId = $mapped !== null && $mapped['fk_i_item_id'] !== null ? (int)$mapped['fk_i_item_id'] : null;
         if ($itemId !== null && !$this->listings->exists($itemId)) {
             $itemId = null;
+        }
+
+        // Its listing was deleted and the record has not changed since: leave it deleted.
+        if ($itemId === null && $mapped !== null && $mapped['s_hash'] === $hash) {
+            if (!$dryRun) {
+                $this->store->seen($source->id, $externalId);
+            }
+
+            return $this->done(self::UNCHANGED, null, $externalId, $warnings) + ($dryRun ? array('fields' => $resolved['fields']) : array());
         }
 
         // A listing taken off the site because its record left the feed goes back on when the

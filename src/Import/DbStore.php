@@ -81,8 +81,8 @@ final class DbStore implements Store
     }
 
     /**
-     * Forget a listing an admin deleted, so the record behind it is created again only when
-     * it changes.
+     * Unlink a listing an admin deleted. The record's hash stays, so it is created again only
+     * when the record changes.
      *
      * @param int|string $itemId
      *
