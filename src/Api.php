@@ -142,7 +142,7 @@ final class Api
 
     /**
      * The 0.2 paths, which redirect to their new place under ext/listing-import/. Deprecated;
-     * removed in 0.4. Core answers GET and POST listings and listings/{id} itself, so only the
+     * removed in 0.4, and core stops serving them from the sunset day. Core answers GET and POST listings and listings/{id} itself, so only the
      * other shapes are kept. A GET moves with 301, a write with 308, which keeps the method
      * and body.
      *
@@ -156,6 +156,7 @@ final class Api
             'tags'       => array('Deprecated'),
             'summary'    => 'Moved to /api/v1/' . self::BASE . '... (Listing Import); removed in 0.4',
             'deprecated' => '2026-10-04',
+            'sunset'     => '2027-04-04',
         );
         $write = $moved + array('responses' => array(308 => array('type' => 'null')));
         // A numeric id is a core listing, so OPTIONS and 405 for listings/12 never offer PUT.

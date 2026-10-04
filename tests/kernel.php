@@ -129,6 +129,11 @@ $router    = Router::build($validator, array(), static function (string $message
     $refused[] = $message;
 });
 pin('core accepts every route', array(), $refused);
+$refused = array();
+Router::build(new Validator(\mindstellar\api\schema\Schema::components()), \mindstellar\api\routing\RouteTable::core(), static function (string $message) use (&$refused): void {
+    $refused[] = $message;
+}, null, '2026-10-04');
+pin('also next to the core routes, none of which answers an old path', array(), $refused);
 check('the batch path with a colon is matched', $router->match('POST', 'ext/listing-import/listings:batch') !== null);
 check('an external id is matched, a slash in it is not', $router->match('GET', 'ext/listing-import/listings/A-1') !== null
     && $router->match('GET', 'ext/listing-import/listings/a/b') === null);
