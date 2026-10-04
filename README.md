@@ -127,7 +127,7 @@ The site's background jobs import the records. Check `GET /api/v1/ext/listing-im
 Errors follow RFC 9457 (`application/problem+json`), as the rest of the site's API does:
 
 ```json
-{"type":"https://mindstellar.com/docs/developers/api/errors/#not_imported","title":"The record was not imported.","status":422,"detail":"The record was not imported; see errors.","code":"not_imported","errors":[{"pointer":"/title","message":"Required.","in":"body"}]}
+{"type":"https://mindstellar.com/docs/developers/api/errors/#validation_failed","title":"The request is not valid.","status":422,"detail":"The record was not imported; see errors.","code":"validation_failed","errors":[{"pointer":"/title","code":"rejected","message":"Required.","in":"body"}]}
 ```
 
 | Status | Code | Why |
@@ -140,7 +140,7 @@ Errors follow RFC 9457 (`application/problem+json`), as the rest of the site's A
 | 409 | `conflict` | The key is linked to no source, or its source is switched off. |
 | 413 | `too_large` | Body over 1 MB, or more than 200 records. |
 | 415 | `unsupported_media_type` | Send `Content-Type: application/json`. |
-| 422 | `not_imported`, `validation_failed` | The record is wrong. `errors` says where. |
+| 422 | `validation_failed` | The record is wrong. `errors` says where. |
 | 429 | `rate_limited`, `too_many_failures` | Too many requests. Wait for `Retry-After` seconds. |
 | 500 | `server_error` | Something failed on the site. The site's error log says what. |
 

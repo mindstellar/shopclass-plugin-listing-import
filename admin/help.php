@@ -150,7 +150,7 @@ osc_admin_disclosure_close();
 osc_admin_disclosure_open(__('When a request is refused', 'listing-import'));
 ?>
     <p><?php _e('Errors follow RFC 9457 (application/problem+json), as the rest of the API does. For a record, errors says what is wrong with each field, so it can be fixed in one go.', 'listing-import'); ?></p>
-    <?php $code('{"type":"https://mindstellar.com/docs/developers/api/errors/#not_imported","title":"The record was not imported.","status":422,"detail":"The record was not imported; see errors.","code":"not_imported","errors":[{"pointer":"/description","message":"Required.","in":"body"}]}'); ?>
+    <?php $code('{"type":"https://mindstellar.com/docs/developers/api/errors/#validation_failed","title":"The request is not valid.","status":422,"detail":"The record was not imported; see errors.","code":"validation_failed","errors":[{"pointer":"/description","code":"rejected","message":"Required.","in":"body"}]}'); ?>
 <?php
 osc_admin_disclosure_close();
 
@@ -164,7 +164,7 @@ $table(array(__('Status', 'listing-import'), __('Code', 'listing-import'), __('W
     array('409', 'conflict', __('The key is linked to no source, or its source is switched off.', 'listing-import')),
     array('413', 'too_large', __('A body over 1 MB, or more than 200 records.', 'listing-import')),
     array('415', 'unsupported_media_type', __('Send Content-Type: application/json.', 'listing-import')),
-    array('422', 'not_imported, validation_failed', __('The record is wrong. errors says where.', 'listing-import')),
+    array('422', 'validation_failed', __('The record is wrong. errors says where.', 'listing-import')),
     array('429', 'rate_limited, too_many_failures', __('Too many requests. Wait for the Retry-After seconds.', 'listing-import')),
     array('500', 'server_error', __('Something failed on the site. Its error log says what.', 'listing-import')),
 ));

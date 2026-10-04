@@ -59,7 +59,7 @@ osc_add_hook('init', array(Plugin::class, 'upgrade'));
 
 // The REST API endpoints under /api/v1/ext/listing-import/, with core's own keys and scopes.
 osc_add_filter('api_scopes', static fn ($scopes) => array_merge((array)$scopes, Api::scopes()));
-foreach (Api::routes(array(Plugin::class, 'api')) as $liKey => $liSpec) {
+foreach (Api::routes(array(Plugin::class, 'api')) + Api::oldPaths() as $liKey => $liSpec) {
     [$liMethod, $liPath] = explode(' ', $liKey, 2);
     osc_api_register_route($liMethod, $liPath, $liSpec);
 }

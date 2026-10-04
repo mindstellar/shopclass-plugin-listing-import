@@ -27,7 +27,7 @@ use mindstellar\api\auth\KeyOwner;
 use mindstellar\api\auth\Scopes;
 use mindstellar\api\auth\StoredKey;
 use mindstellar\api\auth\UserRows;
-use mindstellar\api\Clock;
+use mindstellar\utility\Clock;
 use mindstellar\api\idempotency\Idempotency;
 use mindstellar\api\idempotency\IdempotencyRecord;
 use mindstellar\api\idempotency\IdempotencyStore;
@@ -38,6 +38,18 @@ use mindstellar\api\routing\Router;
 use mindstellar\api\schema\Validator;
 use mindstellar\listingimport\Api;
 
+if (!function_exists('osc_rewrite_enabled')) {
+    function osc_rewrite_enabled()
+    {
+        return true;
+    }
+}
+if (!function_exists('osc_base_url')) {
+    function osc_base_url($withIndex = false)
+    {
+        return 'https://shop.test/';
+    }
+}
 if (!function_exists('__')) {
     function __($text, $domain = '')
     {
@@ -108,7 +120,7 @@ harness_section('the routes');
 
 $refused = array();
 $api     = fake_api();
-foreach (Api::routes(static fn () => $api) as $key => $spec) {
+foreach (Api::routes(static fn () => $api) + Api::oldPaths() as $key => $spec) {
     [$method, $path] = explode(' ', $key, 2);
     osc_api_register_route($method, $path, $spec);
 }
@@ -120,6 +132,8 @@ pin('core accepts every route', array(), $refused);
 check('the batch path with a colon is matched', $router->match('POST', 'ext/listing-import/listings:batch') !== null);
 check('an external id is matched, a slash in it is not', $router->match('GET', 'ext/listing-import/listings/A-1') !== null
     && $router->match('GET', 'ext/listing-import/listings/a/b') === null);
+check('the 0.2 paths are kept as deprecated routes', $router->match('POST', 'listings:batch') !== null && $router->match('GET', 'runs/7')?->route()->deprecated() !== null);
+check('a numeric listing id is never taken by the old PUT', $router->match('PUT', 'listings/12') === null && $router->match('PUT', 'listings/SKU-1') !== null);
 check('a run id must be a number', $router->match('GET', 'ext/listing-import/runs/12') !== null
     && $router->match('GET', 'ext/listing-import/runs/abc') === null);
 
@@ -138,7 +152,7 @@ $clock    = new class ($now) implements Clock {
 };
 $rows     = new KeyRows();
 $keys     = new ApiKeys($rows, $scopes, $clock);
-$settings = new ApiSettings();
+$settings = new ApiSettings(true);
 $counts   = array();
 $nobody   = static fn (): ?array => null;
 $kernel   = new Kernel(
@@ -190,13 +204,20 @@ pin('the record is read back by its id', 200, $call('GET', 'listings/K1', $write
 $runId = $call('POST', 'listings', $writer->token(), array('external_id' => 'K2') + $record)->body()['data']['run_id'];
 pin('a run is read with the runs scope', 200, $call('GET', 'runs/' . $runId, $reader->token())->status());
 $r = $call('POST', 'listings', $writer->token(), array('title' => 'No id'));
-pin('a record with errors is a 422 with a pointer per field', array(422, 'not_imported', '/external_id'), array($r->status(), $r->body()['code'], $r->body()['errors'][0]['pointer'] ?? null));
+pin('a record with errors is a 422 with a pointer per field', array(422, 'validation_failed', '/external_id'), array($r->status(), $r->body()['code'], $r->body()['errors'][0]['pointer'] ?? null));
 $r = $call('POST', 'listings:batch', $writer->token(), array('records' => array()));
 pin('an empty batch is refused by the route\'s own schema', array(422, 'validation_failed'), array($r->status(), $r->body()['code']));
 $r = $call('POST', 'listings:batch', $writer->token(), array('records' => array_fill(0, 201, $record)));
 pin('201 records is 413', array(413, 'too_large'), array($r->status(), $r->body()['code']));
 $r = $call('POST', 'listings:batch', $writer->token(), array('records' => array(array('external_id' => 'B1') + $record)));
 pin('a batch is accepted: 202', array(202, 'queued'), array($r->status(), $r->body()['data']['status'] ?? null));
+$moved = static fn (string $method, string $path, array $query = array()) => $kernel->handle(new Request($method, 'v1/' . $path, $query, array(), '203.0.113.9'));
+$r     = $moved('POST', 'listings:batch');
+pin('an old write path moves with 308, which keeps the method', array(308, 'https://shop.test/api/v1/ext/listing-import/listings:batch'), array($r->status(), $r->header('Location')));
+$r = $moved('GET', 'runs/7', array('x' => '1'));
+pin('an old read moves with 301 and keeps its query', array(301, 'https://shop.test/api/v1/ext/listing-import/runs/7?x=1'), array($r->status(), $r->header('Location')));
+pin('an external id is re-encoded', 'https://shop.test/api/v1/ext/listing-import/listings/SKU%201', $moved('PUT', 'listings/SKU 1')->header('Location'));
+check('and the answers say the path is deprecated', $moved('GET', 'runs/7')->header('Deprecation') !== null);
 $unlinked = $keys->create(CredentialKind::KEY, 'Unlinked', array(Api::WRITE), $admin);
 $r        = $call('POST', 'listings', $unlinked->token(), $record);
 pin('a key linked to no source is 409', array(409, 'conflict'), array($r->status(), $r->body()['code']));

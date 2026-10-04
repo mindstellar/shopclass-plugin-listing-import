@@ -71,8 +71,8 @@ pin('and nothing was imported by either', 2, count($GLOBALS['__listings']->items
 harness_section('what a refused record answers');
 
 $r = api_call($api, 'createListing', $writer, array(), array('title' => 'No id'));
-pin('a record with errors is 422, each field named by a pointer', array(422, 'not_imported', array('/external_id', '/description')), array($r->status(), api_code($r), array_column($r->body()['errors'] ?? array(), 'pointer')));
-pin('the problem carries the code and the status', array(422, 'not_imported'), array($r->body()['status'], $r->body()['code']));
+pin('a record with errors is 422, each field named by a pointer', array(422, 'validation_failed', array('/external_id', '/description')), array($r->status(), api_code($r), array_column($r->body()['errors'] ?? array(), 'pointer')));
+pin('the problem carries the code and the status', array(422, 'validation_failed'), array($r->body()['status'], $r->body()['code']));
 pin('broken JSON is core\'s 400', array(400, 'invalid_json'), (static function () use ($api, $writer) {
     $r = api_call($api, 'createListing', $writer, array(), null, '{"title":');
 
