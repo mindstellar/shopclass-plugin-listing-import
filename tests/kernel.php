@@ -26,6 +26,7 @@ use mindstellar\api\auth\KeyOwner;
 use mindstellar\api\auth\Scopes;
 use mindstellar\api\auth\StoredKey;
 use mindstellar\api\CachePolicy;
+use mindstellar\api\Clock;
 use mindstellar\api\Kernel;
 use mindstellar\api\RateLimiter;
 use mindstellar\api\RatePolicy;
@@ -122,8 +123,18 @@ check('a run id must be a number', $router->match('GET', 'ext/listing-import/run
 harness_section('a request through the kernel');
 
 $now      = 1_800_000_000;
+$clock    = new class ($now) implements Clock {
+    public function __construct(private int $now)
+    {
+    }
+
+    public function now(): int
+    {
+        return $this->now;
+    }
+};
 $rows     = new KeyRows();
-$keys     = new ApiKeys($rows, $scopes, static fn () => $now);
+$keys     = new ApiKeys($rows, $scopes, $clock);
 $settings = new ApiSettings();
 $counts   = array();
 $kernel   = new Kernel(
@@ -133,7 +144,7 @@ $kernel   = new Kernel(
     new RatePolicy($settings),
     new RateLimiter(static function (string $b, string $k, int $w) use (&$counts): int {
         return $counts[$b . '|' . $k] = ($counts[$b . '|' . $k] ?? 0) + 1;
-    }, static fn () => $now),
+    }, $clock),
     $validator,
     new CachePolicy($settings->cacheMaxAge()),
     $settings
