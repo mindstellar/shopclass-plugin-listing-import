@@ -176,7 +176,7 @@ osc_admin_form_section(__('Fetch a feed', 'listing-import'), array('spaced' => t
 ?>
     <p><?php _e('Add a source that fetches a feed: its address, its format and how often. Formats: JSON, NDJSON, CSV, or another Shopclass site\'s RSS. When the feed names its fields differently, map them one per line:', 'listing-import'); ?></p>
     <?php $code("id = external_id\nHeadline = title\nTown = location.city\nCost = price.amount"); ?>
-    <p><?php _e('Preview shows what a fetch would import, without changing anything. A listing whose record leaves the feed is deactivated, not deleted, and comes back with its record. If most records in a fetch fail, nothing is deactivated.', 'listing-import'); ?></p>
+    <p><?php _e('Preview shows what a fetch would import, without changing anything. A listing whose record leaves the feed is deactivated, not deleted, and comes back with its record. A listing deleted in the admin stays deleted until its record changes. If most records in a fetch fail, nothing is deactivated.', 'listing-import'); ?></p>
 <?php
 
 osc_admin_form_section(__('Import a file', 'listing-import'), array('spaced' => true));

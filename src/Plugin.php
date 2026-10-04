@@ -34,7 +34,7 @@ final class Plugin
     /** The route hook every API request arrives on. */
     public const ROUTE = 'listing-import-api';
 
-    public const VERSION = '0.2.0';
+    public const VERSION = '0.2.1';
 
     /**
      * Create the tables.

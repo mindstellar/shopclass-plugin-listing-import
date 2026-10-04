@@ -42,7 +42,7 @@ curl "https://example.com/index.php?page=route&route=listing-import-api&path=pin
 Both answer:
 
 ```json
-{"data":{"plugin":"listing-import","version":"0.2.0"}}
+{"data":{"plugin":"listing-import","version":"0.2.1"}}
 ```
 
 ## Make a key
@@ -176,6 +176,9 @@ fetch at once.
 
 A listing whose record leaves the feed is deactivated, not deleted. It comes back when the
 record returns. If most records in a fetch fail, nothing is deactivated.
+
+A listing you delete in the admin stays deleted until its record changes. Then it is created
+again.
 
 ## Import a file
 

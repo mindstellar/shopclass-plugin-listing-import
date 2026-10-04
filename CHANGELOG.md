@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+### Fixed
+- A listing deleted in the admin stays deleted until its record changes; it was recreated on every import.
+
 ## 0.2.0
 
 ### New

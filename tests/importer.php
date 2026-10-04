@@ -53,10 +53,18 @@ pin('so there are two', 2, count($GLOBALS['__listings']->items));
 
 harness_section('a listing an admin deleted');
 
+// Core's before_delete_item hook clears the map row's listing id and keeps its hash.
 unset($GLOBALS['__listings']->items[$first['item_id']]);
+$GLOBALS['__store']->map['1|A1']['fk_i_item_id'] = null;
 $r = $importer->import($source, $changed, 1);
-pin('is created again when the record comes in', 'created', $r['status']);
+pin('stays deleted when the same record comes in again', array('unchanged', null), array($r['status'], $r['item_id']));
+pin('and no listing is made for it', 1, count($GLOBALS['__listings']->items));
+pin('also in a preview', 'unchanged', $importer->import($source, $changed, 1, true)['status']);
+$green = array('title' => 'Green bike') + $record;
+$r     = $importer->import($source, $green, 1);
+pin('is created again when the record changes', 'created', $r['status']);
 check('as a new listing', $r['item_id'] !== $first['item_id']);
+pin('and then that record is unchanged', 'unchanged', $importer->import($source, $green, 1)['status']);
 
 harness_section('a dry run');
 
