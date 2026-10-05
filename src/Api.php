@@ -11,7 +11,7 @@
 
 namespace mindstellar\listingimport;
 
-use mindstellar\api\ApiProblem;
+use mindstellar\api\ProblemException;
 use mindstellar\api\auth\Credential;
 use mindstellar\api\Request;
 use mindstellar\api\Response;
@@ -100,7 +100,7 @@ final class Api
                 'body'      => array(
                     'type'       => 'object',
                     'required'   => array('records'),
-                    'properties' => array('records' => array('type' => 'array', 'minItems' => 1)),
+                    'properties' => array('records' => array('type' => 'array', 'minItems' => 1, 'items' => $record)),
                 ),
                 'responses' => array(202 => array('type' => 'object'), 413 => $problem) + $problems,
             ),
@@ -199,7 +199,7 @@ final class Api
     {
         $record = $request->json();
         if (isset($record['external_id']) && (string)$record['external_id'] !== $args['external_id']) {
-            throw ApiProblem::of('validation_failed', 'The external_id in the body is not the one in the address.', array(
+            throw ProblemException::of('validation_failed', 'The external_id in the body is not the one in the address.', array(
                 'errors' => array(array('pointer' => '/external_id', 'code' => 'id_mismatch', 'message' => 'must match the address', 'in' => 'body')),
             ));
         }
@@ -217,7 +217,7 @@ final class Api
         $mapped = $this->store->mapped($source->id, $args['external_id']);
         $itemId = $this->liveItem($mapped);
         if ($itemId === null) {
-            throw ApiProblem::of('not_found', 'No listing for this external id.');
+            throw ProblemException::of('not_found', 'No listing for this external id.');
         }
 
         return Response::ok(array(
@@ -238,10 +238,10 @@ final class Api
         $source = $this->source($credential);
         $itemId = $this->liveItem($this->store->mapped($source->id, $args['external_id']));
         if ($itemId === null) {
-            throw ApiProblem::of('not_found', 'No listing for this external id.');
+            throw ProblemException::of('not_found', 'No listing for this external id.');
         }
         if (!$this->listings->delete($itemId)) {
-            throw ApiProblem::of('server_error', 'The listing could not be deleted.');
+            throw ProblemException::of('server_error', 'The listing could not be deleted.');
         }
         $this->store->forgetRecord($source->id, $args['external_id']);
 
@@ -256,10 +256,10 @@ final class Api
     {
         $records = $request->json()['records'] ?? null;
         if (!is_array($records) || $records === array() || array_keys($records) !== range(0, count($records) - 1)) {
-            throw ApiProblem::of('validation_failed', 'Send {"records": [...]} with at least one record.');
+            throw ProblemException::of('validation_failed', 'Send {"records": [...]} with at least one record.');
         }
         if (count($records) > Batch::MAX_RECORDS) {
-            throw ApiProblem::of('too_large', 'At most ' . Batch::MAX_RECORDS . ' records per batch.');
+            throw ProblemException::of('too_large', 'At most ' . Batch::MAX_RECORDS . ' records per batch.');
         }
         $runId = $this->batch->queue($this->source($credential), $records, 'push');
 
@@ -274,7 +274,7 @@ final class Api
         $run    = $this->store->run((int)$args['id']);
         $source = $this->source($credential);
         if ($run === null || (int)$run['fk_i_source_id'] !== $source->id) {
-            throw ApiProblem::of('not_found', 'No such run.');
+            throw ProblemException::of('not_found', 'No such run.');
         }
         $counts = array();
         foreach (array('created', 'updated', 'unchanged', 'retired', 'failed') as $name) {
@@ -308,7 +308,7 @@ final class Api
                 $errors[] = array('pointer' => '/' . str_replace('.', '/', (string)$field), 'code' => 'rejected', 'message' => (string)$message, 'in' => 'body');
             }
 
-            throw ApiProblem::of('validation_failed', 'The record was not imported; see errors.', array('errors' => $errors));
+            throw ProblemException::of('validation_failed', 'The record was not imported; see errors.', array('errors' => $errors));
         }
         $response = Response::ok(array(
             'status'      => $result['status'],
@@ -340,7 +340,7 @@ final class Api
     {
         $source = $this->store->sourceForKey((int)$credential->id());
         if ($source === null) {
-            throw ApiProblem::of('conflict', 'This key is not linked to an import source, or its source is switched off. Link it under Plugins > Listing import > Sources.');
+            throw ProblemException::of('conflict', 'This key is not linked to an import source, or its source is switched off. Link it under Plugins > Listing import > Sources.');
         }
 
         return $source;

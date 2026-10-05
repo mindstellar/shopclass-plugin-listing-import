@@ -9,7 +9,7 @@
  * Stand-ins for the parts of the API that need a database or a running site.
  */
 
-use mindstellar\api\ApiProblem;
+use mindstellar\api\ProblemException;
 use mindstellar\api\auth\Credential;
 use mindstellar\api\auth\CredentialKind;
 use mindstellar\api\Request;
@@ -52,7 +52,7 @@ function fake_key(int $id = 1, array $scopes = array(Api::WRITE)): Credential
 }
 
 /**
- * Call a handler as core's kernel would, and return what it answers: a thrown ApiProblem is
+ * Call a handler as core's kernel would, and return what it answers: a thrown ProblemException is
  * the problem response.
  *
  * @param array<string,string> $args   the route's placeholders
@@ -63,7 +63,7 @@ function api_call(Api $api, string $handler, Credential $key, array $args = arra
     $request = new Request('POST', 'v1/x', array(), array('Content-Type' => 'application/json'), '203.0.113.9', $rawBody ?? ($body === null ? '' : json_encode($body)));
     try {
         return $api->$handler($request, $key, $args);
-    } catch (ApiProblem $e) {
+    } catch (ProblemException $e) {
         return $e->response();
     }
 }
