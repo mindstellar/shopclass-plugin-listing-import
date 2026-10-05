@@ -12,7 +12,7 @@
 namespace mindstellar\listingimport\Import;
 
 use ItemActions;
-use mindstellar\billing\Entitlements;
+use mindstellar\billing\EntitlementStore;
 use mindstellar\storage\UploadMimes;
 use Params;
 
@@ -91,7 +91,7 @@ final class CoreListings implements Listings
 
     public function canPublish(int $ownerId): bool
     {
-        return !osc_billing_enabled() || $ownerId <= 0 || Entitlements::canPublish($ownerId);
+        return !osc_billing_enabled() || $ownerId <= 0 || EntitlementStore::canPublish($ownerId);
     }
 
     public function refuseImage(string $path): ?string
