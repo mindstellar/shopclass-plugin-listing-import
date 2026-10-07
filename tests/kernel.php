@@ -15,17 +15,17 @@ require __DIR__ . '/lib/harness.php';
 harness_core();
 harness_plugin();
 
-use mindstellar\api\ApiSettings;
+use mindstellar\apiaccess\ApiSettings;
 use mindstellar\api\auth\AccessTokens;
 use mindstellar\api\auth\AdminRows;
-use mindstellar\api\auth\ApiKeys;
+use mindstellar\apiaccess\ApiKeys;
 use mindstellar\api\auth\Authenticator;
-use mindstellar\api\auth\CredentialKind;
-use mindstellar\api\auth\CredentialStore;
+use mindstellar\apiaccess\CredentialKind;
+use mindstellar\apiaccess\CredentialStore;
 use mindstellar\api\auth\FailureCounter;
-use mindstellar\api\auth\KeyOwner;
-use mindstellar\api\auth\Scopes;
-use mindstellar\api\auth\StoredKey;
+use mindstellar\apiaccess\KeyOwner;
+use mindstellar\apiaccess\Scopes;
+use mindstellar\apiaccess\StoredKey;
 use mindstellar\api\auth\UserRows;
 use mindstellar\utility\Clock;
 use mindstellar\api\idempotency\Idempotency;
@@ -171,16 +171,16 @@ $kernel   = new Kernel(
     new UserRows($nobody),
     new AdminRows($nobody),
     new Idempotency(new class () implements IdempotencyStore {
-        public function claim(string $hash, string $fingerprint, int $now, int $expiresAt, int $lockTtl): ?IdempotencyRecord
+        public function claim(string $hash, string $fingerprint, int $now, int $expiresAt, int $lockTtl, string $lock): ?IdempotencyRecord
         {
             return null;
         }
 
-        public function complete(string $hash, int $status, string $response): void
+        public function complete(string $hash, string $lock, int $status, string $response): void
         {
         }
 
-        public function release(string $hash): void
+        public function release(string $hash, string $lock): void
         {
         }
     }, $clock)

@@ -11,9 +11,9 @@
 
 namespace mindstellar\listingimport;
 
+use mindstellar\api\ApiCall;
 use mindstellar\api\ProblemException;
-use mindstellar\api\auth\Credential;
-use mindstellar\api\Request;
+use mindstellar\apiaccess\Credential;
 use mindstellar\api\Response;
 use mindstellar\listingimport\Import\Batch;
 use mindstellar\listingimport\Import\Importer;
@@ -68,8 +68,8 @@ final class Api
     public static function routes(callable $make): array
     {
         $handler = static fn (string $method): \Closure
-            => static fn (Request $request, Credential $credential, array $args): Response
-                => $make()->$method($request, $credential, $args);
+            => static fn (ApiCall $call): Response
+                => $make()->$method($call);
         $record  = array('type' => 'object');
         $problem = array('type' => 'object');
         $problems = array(
@@ -173,10 +173,10 @@ final class Api
     /**
      * Redirect an old path to the same one under ext/listing-import/, query kept.
      *
-     * @param array<string,string> $args
      */
-    public static function moved(Request $request, Credential $credential, array $args): Response
+    public static function moved(ApiCall $call): Response
     {
+        $request = $call->request();
         $path   = (string)preg_replace('#^v[0-9]+/#', '', (string)$request->path());
         $query  = http_build_query($request->query(), '', '&', PHP_QUERY_RFC3986);
         $target = osc_api_url(self::BASE . str_replace('%3A', ':', implode('/', array_map('rawurlencode', explode('/', $path)))) . ($query === '' ? '' : '?' . $query));
@@ -187,41 +187,41 @@ final class Api
     /**
      * Import one record into the key's source.
      */
-    public function createListing(Request $request, Credential $credential, array $args = array()): Response
+    public function createListing(ApiCall $call): Response
     {
-        return $this->importOne($request->json(), $credential);
+        return $this->importOne($call->input(), $call->credential());
     }
 
     /**
      * Create or replace the listing for an external id with the whole record.
      */
-    public function putListing(Request $request, Credential $credential, array $args): Response
+    public function putListing(ApiCall $call): Response
     {
-        $record = $request->json();
-        if (isset($record['external_id']) && (string)$record['external_id'] !== $args['external_id']) {
+        $record = $call->input();
+        if (isset($record['external_id']) && (string)$record['external_id'] !== $call->arg('external_id')) {
             throw ProblemException::of('validation_failed', 'The external_id in the body is not the one in the address.', array(
                 'errors' => array(array('pointer' => '/external_id', 'code' => 'id_mismatch', 'message' => 'must match the address', 'in' => 'body')),
             ));
         }
-        $record['external_id'] = $args['external_id'];
+        $record['external_id'] = $call->arg('external_id');
 
-        return $this->importOne($record, $credential);
+        return $this->importOne($record, $call->credential());
     }
 
     /**
      * Where one record stands: the listing it became, and whether it is still live.
      */
-    public function showListing(Request $request, Credential $credential, array $args): Response
+    public function showListing(ApiCall $call): Response
     {
-        $source = $this->source($credential);
-        $mapped = $this->store->mapped($source->id, $args['external_id']);
+        $source = $this->source($call->credential());
+        $mapped = $this->store->mapped($source->id, $call->arg('external_id'));
         $itemId = $this->liveItem($mapped);
         if ($itemId === null) {
             throw ProblemException::of('not_found', 'No listing for this external id.');
         }
 
         return Response::ok(array(
-            'external_id' => $args['external_id'],
+            'external_id' => $call->arg('external_id'),
             'item_id'     => $itemId,
             'status'      => ($mapped['e_status'] ?? 'active') === 'retired' ? 'removed_from_feed' : 'active',
             'url'         => $this->listings->url($itemId),
@@ -233,35 +233,35 @@ final class Api
     /**
      * Delete the listing for an external id. The owner asked, so it really is deleted.
      */
-    public function deleteListing(Request $request, Credential $credential, array $args): Response
+    public function deleteListing(ApiCall $call): Response
     {
-        $source = $this->source($credential);
-        $itemId = $this->liveItem($this->store->mapped($source->id, $args['external_id']));
+        $source = $this->source($call->credential());
+        $itemId = $this->liveItem($this->store->mapped($source->id, $call->arg('external_id')));
         if ($itemId === null) {
             throw ProblemException::of('not_found', 'No listing for this external id.');
         }
         if (!$this->listings->delete($itemId)) {
             throw ProblemException::of('server_error', 'The listing could not be deleted.');
         }
-        $this->store->forgetRecord($source->id, $args['external_id']);
+        $this->store->forgetRecord($source->id, $call->arg('external_id'));
 
-        return Response::ok(array('external_id' => $args['external_id'], 'item_id' => $itemId, 'deleted' => true));
+        return Response::ok(array('external_id' => $call->arg('external_id'), 'item_id' => $itemId, 'deleted' => true));
     }
 
     /**
      * Start a run for up to MAX_RECORDS records and queue them. The answer is at once; the
      * run's endpoint says how it went.
      */
-    public function createBatch(Request $request, Credential $credential, array $args = array()): Response
+    public function createBatch(ApiCall $call): Response
     {
-        $records = $request->json()['records'] ?? null;
+        $records = $call->input()['records'] ?? null;
         if (!is_array($records) || $records === array() || array_keys($records) !== range(0, count($records) - 1)) {
             throw ProblemException::of('validation_failed', 'Send {"records": [...]} with at least one record.');
         }
         if (count($records) > Batch::MAX_RECORDS) {
             throw ProblemException::of('too_large', 'At most ' . Batch::MAX_RECORDS . ' records per batch.');
         }
-        $runId = $this->batch->queue($this->source($credential), $records, 'push');
+        $runId = $this->batch->queue($this->source($call->credential()), $records, 'push');
 
         return Response::ok(array('run_id' => $runId, 'records' => count($records), 'status' => 'queued'), 202);
     }
@@ -269,10 +269,10 @@ final class Api
     /**
      * How a run went. A key sees only runs of its own source.
      */
-    public function showRun(Request $request, Credential $credential, array $args): Response
+    public function showRun(ApiCall $call): Response
     {
-        $run    = $this->store->run((int)$args['id']);
-        $source = $this->source($credential);
+        $run    = $this->store->run($call->intArg('id'));
+        $source = $this->source($call->credential());
         if ($run === null || (int)$run['fk_i_source_id'] !== $source->id) {
             throw ProblemException::of('not_found', 'No such run.');
         }

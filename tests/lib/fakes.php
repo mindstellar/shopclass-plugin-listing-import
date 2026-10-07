@@ -9,9 +9,10 @@
  * Stand-ins for the parts of the API that need a database or a running site.
  */
 
+use mindstellar\api\ApiCall;
 use mindstellar\api\ProblemException;
-use mindstellar\api\auth\Credential;
-use mindstellar\api\auth\CredentialKind;
+use mindstellar\apiaccess\Credential;
+use mindstellar\apiaccess\CredentialKind;
 use mindstellar\api\Request;
 use mindstellar\api\Response;
 use mindstellar\listingimport\Api;
@@ -62,7 +63,7 @@ function api_call(Api $api, string $handler, Credential $key, array $args = arra
 {
     $request = new Request('POST', 'v1/x', array(), array('Content-Type' => 'application/json'), '203.0.113.9', $rawBody ?? ($body === null ? '' : json_encode($body)));
     try {
-        return $api->$handler($request, $key, $args);
+        return $api->$handler(new ApiCall($request, $key, $args));
     } catch (ProblemException $e) {
         return $e->response();
     }
