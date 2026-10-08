@@ -32,7 +32,6 @@ final class Menu
         foreach (array(
             'listing-import-sources'  => array(__('Sources', 'listing-import'), osc_route_admin_url(Sources::ROUTE)),
             'listing-import-upload'   => array(__('Import a file', 'listing-import'), osc_route_admin_url(Upload::ROUTE)),
-            'listing-import-keys'     => array(__('API keys (Settings > API)', 'listing-import'), osc_admin_base_url(true) . '?page=settings&action=api'),
             'listing-import-settings' => array(__('Settings', 'listing-import'), osc_settings_page_url(Plugin::PAGE)),
             'listing-import-help'     => array(__('Help', 'listing-import'), osc_route_admin_url(self::HELP_ROUTE)),
         ) as $id => [$title, $url]) {
