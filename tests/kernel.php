@@ -17,7 +17,7 @@ harness_plugin();
 
 use mindstellar\apiaccess\ApiSettings;
 use mindstellar\api\auth\AccessTokens;
-use mindstellar\api\auth\AdminRows;
+use mindstellar\api\auth\MemoisedRows;
 use mindstellar\apiaccess\ApiKeys;
 use mindstellar\api\auth\Authenticator;
 use mindstellar\apiaccess\CredentialKind;
@@ -120,7 +120,7 @@ harness_section('the routes');
 
 $refused = array();
 $api     = fake_api();
-foreach (Api::routes(static fn () => $api) + Api::oldPaths() as $key => $spec) {
+foreach (Api::routes(static fn () => $api) as $key => $spec) {
     [$method, $path] = explode(' ', $key, 2);
     osc_api_register_route($method, $path, $spec);
 }
@@ -130,15 +130,14 @@ $router    = Router::build($validator, array(), static function (string $message
 });
 pin('core accepts every route', array(), $refused);
 $refused = array();
-Router::build(new Validator(\mindstellar\api\schema\Schema::components()), \mindstellar\api\routing\RouteTable::core(), static function (string $message) use (&$refused): void {
+Router::build(new Validator(\mindstellar\api\schema\Schema::components()), \mindstellar\api\routing\Router::core(), static function (string $message) use (&$refused): void {
     $refused[] = $message;
-}, null, '2026-10-04');
-pin('also next to the core routes, none of which answers an old path', array(), $refused);
+});
+pin('also next to the core routes', array(), $refused);
 check('the batch path with a colon is matched', $router->match('POST', 'ext/listing-import/listings:batch') !== null);
 check('an external id is matched, a slash in it is not', $router->match('GET', 'ext/listing-import/listings/A-1') !== null
     && $router->match('GET', 'ext/listing-import/listings/a/b') === null);
-check('the 0.2 paths are kept as deprecated routes', $router->match('POST', 'listings:batch') !== null && $router->match('GET', 'runs/7')?->route()->deprecated() !== null);
-check('a numeric listing id is never taken by the old PUT', $router->match('PUT', 'listings/12') === null && $router->match('PUT', 'listings/SKU-1') !== null);
+check('no route outside ext/listing-import/ is registered', $router->match('PUT', 'listings/SKU-1') === null);
 check('a run id must be a number', $router->match('GET', 'ext/listing-import/runs/12') !== null
     && $router->match('GET', 'ext/listing-import/runs/abc') === null);
 
@@ -169,7 +168,7 @@ $kernel   = new Kernel(
     $validator,
     $settings,
     new UserRows($nobody),
-    new AdminRows($nobody),
+    new MemoisedRows($nobody),
     new Idempotency(new class () implements IdempotencyStore {
         public function claim(string $hash, string $fingerprint, int $now, int $expiresAt, int $lockTtl, string $lock): ?IdempotencyRecord
         {
@@ -216,13 +215,6 @@ $r = $call('POST', 'listings:batch', $writer->token(), array('records' => array_
 pin('201 records is 413', array(413, 'too_large'), array($r->status(), $r->body()['code']));
 $r = $call('POST', 'listings:batch', $writer->token(), array('records' => array(array('external_id' => 'B1') + $record)));
 pin('a batch is accepted: 202', array(202, 'queued'), array($r->status(), $r->body()['data']['status'] ?? null));
-$moved = static fn (string $method, string $path, array $query = array()) => $kernel->handle(new Request($method, 'v1/' . $path, $query, array(), '203.0.113.9'));
-$r     = $moved('POST', 'listings:batch');
-pin('an old write path moves with 308, which keeps the method', array(308, 'https://shop.test/api/v1/ext/listing-import/listings:batch'), array($r->status(), $r->header('Location')));
-$r = $moved('GET', 'runs/7', array('x' => '1'));
-pin('an old read moves with 301 and keeps its query', array(301, 'https://shop.test/api/v1/ext/listing-import/runs/7?x=1'), array($r->status(), $r->header('Location')));
-pin('an external id is re-encoded', 'https://shop.test/api/v1/ext/listing-import/listings/SKU%201', $moved('PUT', 'listings/SKU 1')->header('Location'));
-check('and the answers say the path is deprecated', $moved('GET', 'runs/7')->header('Deprecation') !== null);
 $unlinked = $keys->create(CredentialKind::KEY, 'Unlinked', array(Api::WRITE), $admin);
 $r        = $call('POST', 'listings', $unlinked->token(), $record);
 pin('a key linked to no source is 409', array(409, 'conflict'), array($r->status(), $r->body()['code']));

@@ -7,7 +7,7 @@
 - Plugin API keys are gone. Make an admin key under **Settings → API** with the `ext:listing-import:write`, `:delete` or `:runs` permission, then list its id on a push source.
 - `GET /api/v1/ping` and `GET /api/v1/openapi.json` are gone; the site's own `GET /api/v1/openapi.json` lists these endpoints too.
 - Errors are RFC 9457 problems: `errors` with a JSON pointer per field replaces `error.fields`. A record that cannot be imported is a `422 validation_failed`.
-- The 0.2 paths redirect to the new ones (301 for a read, 308 for a write) until 0.4.
+- The 0.2 paths are gone; a client needs a new key anyway, so it moves to the new paths at the same time.
 - `import:key:create` is gone; use `api:key:create`. The plugin's request-per-minute setting is gone; limits are under **Settings → API**.
 
 ### Changed

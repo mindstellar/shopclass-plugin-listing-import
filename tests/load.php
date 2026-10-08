@@ -72,19 +72,15 @@ check('the configure link has a handler', isset($GLOBALS['__hooks']['listing-imp
 pin('an update migrates on init', array(array(Plugin::class, 'upgrade')), $GLOBALS['__hooks']['init'] ?? null);
 pin('the settings page is declared under the plugin id', array('listing-import'), array_keys($GLOBALS['__settings']));
 pin('its fields', array('retention_days'), array_column($GLOBALS['__settings']['listing-import']['groups'][0]['fields'], 'name'));
-check('its API routes are all below ext/listing-import/, but the deprecated 0.2 paths', array_reduce(array_keys($GLOBALS['__api_routes']), static fn ($ok, $key) => $ok && (str_contains($key, ' ext/listing-import/') || isset(Api::oldPaths()[$key]['deprecated'])), true));
+check('its API routes are all below ext/listing-import/', array_reduce(array_keys($GLOBALS['__api_routes']), static fn ($ok, $key) => $ok && str_contains($key, ' ext/listing-import/'), true));
 check('and it adds no route hook of its own (the stub would have stopped the load)', !function_exists('osc_add_route_hook'));
-pin('six endpoints, and the four 0.2 paths that redirect to them', array(
+pin('six endpoints', array(
     'DELETE ext/listing-import/listings/{external_id}',
-    'DELETE listings/{external_id}',
     'GET ext/listing-import/listings/{external_id}',
     'GET ext/listing-import/runs/{id}',
-    'GET runs/{id}',
     'POST ext/listing-import/listings',
     'POST ext/listing-import/listings:batch',
-    'POST listings:batch',
     'PUT ext/listing-import/listings/{external_id}',
-    'PUT listings/{external_id}',
 ), (static function () {
     $keys = array_keys($GLOBALS['__api_routes']);
     sort($keys);

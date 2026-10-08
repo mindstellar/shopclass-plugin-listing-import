@@ -141,50 +141,6 @@ final class Api
     }
 
     /**
-     * The 0.2 paths, which redirect to their new place under ext/listing-import/. Deprecated;
-     * removed in 0.4, and core stops serving them from the sunset day. Core answers GET and POST listings and listings/{id} itself, so only the
-     * other shapes are kept. A GET moves with 301, a write with 308, which keeps the method
-     * and body.
-     *
-     * @return array<string,array<string,mixed>>
-     */
-    public static function oldPaths(): array
-    {
-        $moved = array(
-            'handler'    => array(self::class, 'moved'),
-            'auth'       => 'none',
-            'tags'       => array('Deprecated'),
-            'summary'    => 'Moved to /api/v1/' . self::BASE . '... (Listing Import); removed in 0.4',
-            'deprecated' => '2026-10-04',
-            'sunset'     => '2027-04-04',
-        );
-        $write = $moved + array('responses' => array(308 => array('type' => 'null')));
-        // A numeric id is a core listing, so OPTIONS and 405 for listings/12 never offer PUT.
-        $external = $write + array('where' => array('external_id' => '(?![0-9]+(?:/|$))[^/]+'));
-
-        return array(
-            'POST listings:batch'           => $write,
-            'PUT listings/{external_id}'    => $external,
-            'DELETE listings/{external_id}' => $external,
-            'GET runs/{id}'                 => $moved + array('responses' => array(301 => array('type' => 'null'))),
-        );
-    }
-
-    /**
-     * Redirect an old path to the same one under ext/listing-import/, query kept.
-     *
-     */
-    public static function moved(ApiCall $call): Response
-    {
-        $request = $call->request();
-        $path   = (string)preg_replace('#^v[0-9]+/#', '', (string)$request->path());
-        $query  = http_build_query($request->query(), '', '&', PHP_QUERY_RFC3986);
-        $target = osc_api_url(self::BASE . str_replace('%3A', ':', implode('/', array_map('rawurlencode', explode('/', $path)))) . ($query === '' ? '' : '?' . $query));
-
-        return new Response($request->isRead() ? 301 : 308, null, array('Location' => $target));
-    }
-
-    /**
      * Import one record into the key's source.
      */
     public function createListing(ApiCall $call): Response
