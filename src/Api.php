@@ -31,7 +31,9 @@ final class Api
     public const DELETE = 'ext:listing-import:delete';
     public const RUNS   = 'ext:listing-import:runs';
 
-    private const BASE = 'ext/listing-import/';
+    private const SLUG = 'listing-import';
+
+    private const BASE = 'ext/' . self::SLUG . '/';
 
     private const TAG = 'Listing import';
 
@@ -83,6 +85,7 @@ final class Api
         return array(
             'POST ' . self::BASE . 'listings' => array(
                 'handler'   => $handler('createListing'),
+                'plugin'    => self::SLUG,
                 'auth'      => 'admin',
                 'scope'     => self::WRITE,
                 'tags'      => array(self::TAG),
@@ -92,6 +95,7 @@ final class Api
             ),
             'POST ' . self::BASE . 'listings:batch' => array(
                 'handler'   => $handler('createBatch'),
+                'plugin'    => self::SLUG,
                 'auth'      => 'admin',
                 'scope'     => self::WRITE,
                 'tags'      => array(self::TAG),
@@ -106,6 +110,7 @@ final class Api
             ),
             'GET ' . self::BASE . 'listings/{external_id}' => array(
                 'handler'   => $handler('showListing'),
+                'plugin'    => self::SLUG,
                 'auth'      => 'admin',
                 'scope'     => self::WRITE,
                 'tags'      => array(self::TAG),
@@ -114,6 +119,7 @@ final class Api
             ),
             'PUT ' . self::BASE . 'listings/{external_id}' => array(
                 'handler'   => $handler('putListing'),
+                'plugin'    => self::SLUG,
                 'auth'      => 'admin',
                 'scope'     => self::WRITE,
                 'tags'      => array(self::TAG),
@@ -123,6 +129,7 @@ final class Api
             ),
             'DELETE ' . self::BASE . 'listings/{external_id}' => array(
                 'handler'   => $handler('deleteListing'),
+                'plugin'    => self::SLUG,
                 'auth'      => 'admin',
                 'scope'     => self::DELETE,
                 'tags'      => array(self::TAG),
@@ -131,6 +138,7 @@ final class Api
             ),
             'GET ' . self::BASE . 'runs/{id}' => array(
                 'handler'   => $handler('showRun'),
+                'plugin'    => self::SLUG,
                 'auth'      => 'admin',
                 'scope'     => self::RUNS,
                 'tags'      => array(self::TAG),
