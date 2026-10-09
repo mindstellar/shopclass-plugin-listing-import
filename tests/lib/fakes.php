@@ -11,8 +11,8 @@
 
 use mindstellar\api\ApiCall;
 use mindstellar\api\ProblemException;
-use mindstellar\apiaccess\Credential;
-use mindstellar\apiaccess\CredentialKind;
+use mindstellar\apikey\Credential;
+use mindstellar\apikey\CredentialKind;
 use mindstellar\api\Request;
 use mindstellar\api\Response;
 use mindstellar\listingimport\Api;

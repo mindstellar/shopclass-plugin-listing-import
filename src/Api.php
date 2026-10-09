@@ -13,7 +13,7 @@ namespace mindstellar\listingimport;
 
 use mindstellar\api\ApiCall;
 use mindstellar\api\ProblemException;
-use mindstellar\apiaccess\Credential;
+use mindstellar\apikey\Credential;
 use mindstellar\api\Response;
 use mindstellar\listingimport\Import\Batch;
 use mindstellar\listingimport\Import\Importer;

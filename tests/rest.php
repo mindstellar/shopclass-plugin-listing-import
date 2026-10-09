@@ -14,7 +14,7 @@ require __DIR__ . '/lib/harness.php';
 harness_core();
 harness_plugin();
 
-use mindstellar\apiaccess\Credential;
+use mindstellar\apikey\Credential;
 use mindstellar\listingimport\Api;
 use mindstellar\listingimport\Import\Source;
 
