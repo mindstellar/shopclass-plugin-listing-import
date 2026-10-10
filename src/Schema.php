@@ -53,7 +53,7 @@ final class Schema
      */
     public static function migrate(): array
     {
-        $runner = new MigrationRunner(Connection::instance(), self::dir());
+        $runner = new MigrationRunner(Connection::getInstance(), self::dir());
         $runner->ensureLedger();
 
         return $runner->run();
@@ -66,7 +66,7 @@ final class Schema
      */
     public static function drop(): void
     {
-        $conn = Connection::instance();
+        $conn = Connection::getInstance();
         foreach (self::TABLES as $table) {
             $conn->execute('DROP TABLE IF EXISTS ' . DB_TABLE_PREFIX . $table);
         }
