@@ -30,12 +30,19 @@ jobs:
           [ "$version" = "$tag" ] || { echo "tag $GITHUB_REF_NAME does not match Version: $version" >&2; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      # The API tests load core's REST API. Shopclass 7.0 is on develop until it is released.
-      - name: Check out Shopclass 7.0
+      # The API tests load core's REST API: the newest stable 7.x release, or develop before 7.0 ships.
+      - name: Pick the Shopclass 7 version
+        id: core
+        run: |
+          ref="$(git ls-remote --tags --refs https://github.com/mindstellar/shopclass | awk -F/ '{print $3}' | grep -E '^7\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)"
+          echo "ref=${ref:-develop}" >> "$GITHUB_OUTPUT"
+          echo "Testing against Shopclass ${ref:-develop}"
+
+      - name: Check out Shopclass 7
         uses: actions/checkout@v4
         with:
           repository: mindstellar/shopclass
-          ref: develop
+          ref: ${{ steps.core.outputs.ref }}
           path: core
 
       - name: Run the tests
