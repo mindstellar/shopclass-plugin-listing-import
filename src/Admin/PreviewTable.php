@@ -57,7 +57,7 @@ final class PreviewTable
             $fields   = $result['fields'] ?? array();
             $title    = is_array($record['title'] ?? null) ? (string)reset($record['title']) : (string)($record['title'] ?? '');
             $notes    = $result['errors'] + $result['warnings'];
-            $category = empty($fields['catId']) ? array() : (array)Category::newInstance()->findByPrimaryKey((int)$fields['catId']);
+            $category = empty($fields['catId']) ? array() : (array)Category::getInstance()->findByPrimaryKey((int)$fields['catId']);
             [$state, $word] = $words[$result['status']];
 
             echo '<tr><td data-col-name="' . osc_esc_html($cols['record']) . '">' . osc_esc_html($title)

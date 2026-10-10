@@ -12,7 +12,7 @@
     "csv",
     "rss"
   ],
-  "short_description": "Import listings from other systems through a keyed REST API or scheduled JSON, CSV and RSS feeds.",
+  "short_description": "Import listings from other systems through the site's REST API or scheduled JSON, CSV and RSS feeds.",
   "icon": "assets/icon.svg",
   "screenshots": [
     {
@@ -29,10 +29,6 @@
     },
     {
       "src": "assets/screenshot-4.png",
-      "caption": "API keys with their own permissions"
-    },
-    {
-      "src": "assets/screenshot-5.png",
       "caption": "A help screen with the API guide"
     }
   ],

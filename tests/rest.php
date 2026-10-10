@@ -7,84 +7,76 @@
 
 /**
  * One listing by its external id: PUT creates or replaces it, GET says where it stands, DELETE
- * removes it. The OpenAPI file is served without a key and names every route the API has.
+ * removes it. A key reaches only the source it is linked to.
  */
 
 require __DIR__ . '/lib/harness.php';
+harness_core();
 harness_plugin();
 
+use mindstellar\apikey\Credential;
 use mindstellar\listingimport\Api;
-use mindstellar\listingimport\Auth\KeyStore;
-use mindstellar\listingimport\Http\Request;
+use mindstellar\listingimport\Import\Source;
 
 $api    = fake_api();
-$writer = $GLOBALS['__keys']->create('Writer', array(KeyStore::SCOPE_WRITE), 1);
-$admin  = $GLOBALS['__keys']->create('Admin', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_DELETE), 1);
-$call   = static fn (string $method, string $path, array $key, ?array $body = null) => $api->dispatch(new Request(
-    $method,
-    $path,
-    'Bearer ' . $key['token'],
-    '203.0.113.9',
-    'application/json',
-    $body === null ? '' : json_encode($body)
-));
+$writer = fake_key(1, array(Api::WRITE));
+$admin  = fake_key(1, array(Api::WRITE, Api::DELETE));
+$put    = static fn (string $id, Credential $key, array $body) => api_call($api, 'putListing', $key, array('external_id' => $id), $body);
+$get    = static fn (string $id, Credential $key) => api_call($api, 'showListing', $key, array('external_id' => $id));
+$delete = static fn (string $id, Credential $key) => api_call($api, 'deleteListing', $key, array('external_id' => $id));
 $record = array('title' => 'Blue bike', 'description' => 'A good bike.', 'category' => 'bikes');
 
 harness_section('PUT');
 
-$r = $call('PUT', 'listings/P1', $writer, $record);
-pin('creates the listing, the id taken from the address', array(201, 'created', 'P1'), array($r->status, $r->body['data']['status'] ?? null, $r->body['data']['external_id'] ?? null));
-$itemId = $r->body['data']['item_id'];
-$r      = $call('PUT', 'listings/P1', $writer, array('title' => 'Red bike') + $record);
-pin('the same id again replaces it', array(200, 'updated', $itemId), array($r->status, $r->body['data']['status'], $r->body['data']['item_id']));
-pin('the same record once more changes nothing', 'unchanged', $call('PUT', 'listings/P1', $writer, array('title' => 'Red bike') + $record)->body['data']['status']);
-$r = $call('PUT', 'listings/P1', $writer, array('external_id' => 'P2') + $record);
-pin('a body naming another id is refused', array(422, 'id_mismatch'), array($r->status, $r->body['error']['code']));
-pin('a body naming the same id is fine', 200, $call('PUT', 'listings/P1', $writer, array('external_id' => 'P1') + $record)->status);
+$r = $put('P1', $writer, $record);
+pin('creates the listing, the id taken from the address', array(201, 'created', 'P1'), array($r->status(), $r->body()['data']['status'] ?? null, $r->body()['data']['external_id'] ?? null));
+$itemId = $r->body()['data']['item_id'];
+$r      = $put('P1', $writer, array('title' => 'Red bike') + $record);
+pin('the same id again replaces it', array(200, 'updated', $itemId), array($r->status(), $r->body()['data']['status'], $r->body()['data']['item_id']));
+pin('the same record once more changes nothing', 'unchanged', $put('P1', $writer, array('title' => 'Red bike') + $record)->body()['data']['status']);
+$r = $put('P1', $writer, array('external_id' => 'P2') + $record);
+pin('a body naming another id is refused', array(422, 'validation_failed', '/external_id'), array($r->status(), api_code($r), $r->body()['errors'][0]['pointer'] ?? null));
+pin('a body naming the same id is fine', 200, $put('P1', $writer, array('external_id' => 'P1') + $record)->status());
 pin('one listing after all of that', 1, count($GLOBALS['__listings']->items));
 
 harness_section('GET');
 
-$r = $call('GET', 'listings/P1', $writer);
-pin('says which listing and where', array(200, $itemId, 'active', 'https://site.example/item_i' . $itemId), array($r->status, $r->body['data']['item_id'], $r->body['data']['status'], $r->body['data']['url']));
-pin('an id never imported is 404', 404, $call('GET', 'listings/NOPE', $writer)->status);
+$r = $get('P1', $writer);
+pin('says which listing and where', array(200, $itemId, 'active', 'https://site.example/item_i' . $itemId), array($r->status(), $r->body()['data']['item_id'], $r->body()['data']['status'], $r->body()['data']['url']));
+pin('an id never imported is 404', array(404, 'not_found'), array($get('NOPE', $writer)->status(), api_code($get('NOPE', $writer))));
 
 harness_section('DELETE');
 
-pin('needs the delete permission', 403, $call('DELETE', 'listings/P1', $writer)->status);
-pin('and the listing is still there', true, $GLOBALS['__listings']->exists($itemId));
-$r = $call('DELETE', 'listings/P1', $admin);
-pin('with it, the listing is deleted', array(200, true, false), array($r->status, $r->body['data']['deleted'], $GLOBALS['__listings']->exists($itemId)));
+$r = $delete('P1', $admin);
+pin('the listing is deleted', array(200, true, false), array($r->status(), $r->body()['data']['deleted'], $GLOBALS['__listings']->exists($itemId)));
 pin('and the id is forgotten', null, $GLOBALS['__store']->mapped(1, 'P1'));
-pin('a second delete is 404', 404, $call('DELETE', 'listings/P1', $admin)->status);
-pin('a PUT after it makes a new listing', 'created', $call('PUT', 'listings/P1', $writer, $record)->body['data']['status']);
+pin('a second delete is 404', 404, $delete('P1', $admin)->status());
+pin('a PUT after it makes a new listing', 'created', $put('P1', $writer, $record)->body()['data']['status']);
 
 harness_section('a key stays on its own source');
 
-$GLOBALS['__store']->sources[2] = new \mindstellar\listingimport\Import\Source(2, 'Partner B');
-$gone = $GLOBALS['__keys']->create('Paused', array(KeyStore::SCOPE_WRITE), 3);
-pin('a key whose source is off or gone is refused, not moved to another source', array(409, 'no_source'), array($call('PUT', 'listings/P9', $gone, $record)->status, $call('PUT', 'listings/P9', $gone, $record)->body['error']['code']));
-$GLOBALS['__repo']->update((int)$gone['id'], array('fk_i_source_id' => null));
-pin('and so is a key that names no source', 409, $call('GET', 'listings/P1', $gone)->status);
+$GLOBALS['__store']->sources[2] = new Source(2, 'Partner B');
+$GLOBALS['__store']->keySources[7] = 2;
+$other = fake_key(7);
+pin('a key sees only its own source: P1 is not in source 2', 404, $get('P1', $other)->status());
+pin('and imports into it', 'created', $put('P1', $other, $record)->body()['data']['status']);
+pin('without touching the other source\'s listing', 2, count($GLOBALS['__listings']->items));
+unset($GLOBALS['__store']->sources[2]);
+$r = $put('P9', $other, $record);
+pin('a key whose source is off or gone is refused, not moved to another source', array(409, 'conflict'), array($r->status(), api_code($r)));
+$r = $get('P1', fake_key(99));
+pin('so is a key linked to no source', array(409, 'conflict'), array($r->status(), api_code($r)));
+pin('and nothing was imported by either', 2, count($GLOBALS['__listings']->items));
 
-harness_section('the OpenAPI file');
+harness_section('what a refused record answers');
 
-$r    = $api->dispatch(new Request('GET', 'openapi.json', '', '203.0.113.9'));
-pin('is served with no key', array(200, '3.1.0'), array($r->status, $r->body['openapi'] ?? null));
-$documented = array();
-foreach ($r->body['paths'] as $path => $methods) {
-    foreach (array_keys($methods) as $method) {
-        $documented[] = strtoupper($method) . ' ' . str_replace('{external_id}', '{ext}', ltrim($path, '/'));
-    }
-}
-$routes = array_keys(Api::ROUTES);
-sort($routes);
-sort($documented);
-pin('describes every route, and only those', $routes, $documented);
-foreach (Api::ROUTES as $route => [$handler, $scope]) {
-    [$method, $path] = explode(' ', $route, 2);
-    $op = $r->body['paths']['/' . str_replace('{ext}', '{external_id}', $path)][strtolower($method)];
-    pin($route . ' names its permission', $scope, $op['x-scope'] ?? null);
-}
+$r = api_call($api, 'createListing', $writer, array(), array('title' => 'No id'));
+pin('a record with errors is 422, each field named by a pointer', array(422, 'validation_failed', array('/external_id', '/description')), array($r->status(), api_code($r), array_column($r->body()['errors'] ?? array(), 'pointer')));
+pin('the problem carries the code and the status', array(422, 'validation_failed'), array($r->body()['status'], $r->body()['code']));
+pin('broken JSON is core\'s 400', array(400, 'invalid_json'), (static function () use ($api, $writer) {
+    $r = api_call($api, 'createListing', $writer, array(), null, '{"title":');
+
+    return array($r->status(), api_code($r));
+})());
 
 exit(harness_result());

@@ -20,6 +20,9 @@ interface Store
     /** A source by id, or the first push source when the id is null. */
     public function source(?int $id): ?Source;
 
+    /** The enabled push source an API key is linked to, or null when it is linked to none. */
+    public function sourceForKey(int $credentialId): ?Source;
+
     /**
      * @return array<string,mixed>|null the map row for one outside record
      */

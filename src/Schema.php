@@ -23,7 +23,7 @@ use mindstellar\migration\MigrationRunner;
 final class Schema
 {
     /** Bump with every new migration file. */
-    public const VERSION = 1;
+    public const VERSION = 2;
 
     /** The file-name prefix every migration carries. */
     public const PREFIX = 'listing-import_';
@@ -33,7 +33,6 @@ final class Schema
         't_listing_import_log',
         't_listing_import_run',
         't_listing_import_item',
-        't_listing_import_key',
         't_listing_import_source',
     );
 
@@ -54,7 +53,7 @@ final class Schema
      */
     public static function migrate(): array
     {
-        $runner = new MigrationRunner(Connection::instance(), self::dir());
+        $runner = new MigrationRunner(Connection::getInstance(), self::dir());
         $runner->ensureLedger();
 
         return $runner->run();
@@ -67,7 +66,7 @@ final class Schema
      */
     public static function drop(): void
     {
-        $conn = Connection::instance();
+        $conn = Connection::getInstance();
         foreach (self::TABLES as $table) {
             $conn->execute('DROP TABLE IF EXISTS ' . DB_TABLE_PREFIX . $table);
         }

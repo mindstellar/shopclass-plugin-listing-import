@@ -2,13 +2,13 @@
 /*
 Plugin Name: Listing Import
 Plugin URI: https://github.com/mindstellar/shopclass-plugin-listing-import
-Description: Import listings from other systems through a keyed REST API or scheduled JSON, CSV and RSS feeds. Every listing goes through the same checks as one posted by hand.
-Version: 0.2.1
+Description: Import listings from other systems through the site's REST API or scheduled JSON, CSV and RSS feeds. Every listing goes through the same checks as one posted by hand.
+Version: 0.3.0
 Author: Navjot Tomer (Mindstellar)
 Author URI: https://mindstellar.com
 Short Name: listing-import
-Requires Shopclass: 6.4.0
-Tested up to: 6.4
+Requires Shopclass: 7.0
+Tested up to: 7.0
 Requires PHP: 8.0
 Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issues
 */
@@ -23,7 +23,6 @@ Support URI: https://github.com/mindstellar/shopclass-plugin-listing-import/issu
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-use mindstellar\listingimport\Admin\Keys;
 use mindstellar\listingimport\Admin\Menu;
 use mindstellar\listingimport\Admin\Sources;
 use mindstellar\listingimport\Admin\Upload;
@@ -58,14 +57,18 @@ osc_add_hook(osc_plugin_path(__FILE__) . '_configure', static function () {
 // An update ships new migrations; they run on the first request after it.
 osc_add_hook('init', array(Plugin::class, 'upgrade'));
 
-osc_add_route_hook(Plugin::ROUTE, 'api/v1/(.+)', 'api/v1/{path}');
-osc_add_hook(Plugin::ROUTE, array(Api::class, 'handle'));
+// The REST API endpoints under /api/v1/ext/listing-import/, with core's own keys and scopes.
+osc_add_filter('api_scopes', static fn ($scopes) => array_merge((array)$scopes, Api::scopes()));
+foreach (Api::routes(array(Plugin::class, 'api')) as $liKey => $liSpec) {
+    [$liMethod, $liPath] = explode(' ', $liKey, 2);
+    osc_api_register_route($liMethod, $liPath, $liSpec);
+}
 
 // Batches run as core's background jobs, one per record; old log lines go once a day.
 osc_add_hook('register_jobs', array(Plugin::class, 'registerJobs'));
 osc_add_hook('cron_daily', array(Plugin::class, 'prune'));
 
-// php oc-cli.php import:run, import:status and import:key:create.
+// php oc-cli.php import:run and import:status.
 osc_add_filter('cli_commands', array(Cli::class, 'commands'));
 
 // Downloaded images that nothing took are removed after two hours.
@@ -85,9 +88,7 @@ foreach (array(
 }
 osc_add_hook('init_admin', array(Sources::class, 'handlePost'));
 
-// The API keys screen, and the help.
-osc_add_route(Keys::ROUTE, 'listing-import/keys', 'listing-import/keys', osc_plugin_folder(__FILE__) . 'admin/keys.php');
-osc_add_hook('init_admin', array(Keys::class, 'handlePost'));
+// The help.
 osc_add_route(Menu::HELP_ROUTE, 'listing-import/help', 'listing-import/help', osc_plugin_folder(__FILE__) . 'admin/help.php');
 
 // Importing a file an admin uploads.

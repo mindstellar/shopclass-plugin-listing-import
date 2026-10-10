@@ -94,3 +94,32 @@ function harness_plugin(): void
     });
     require_once __DIR__ . '/fakes.php';
 }
+
+/**
+ * Load core's API classes (Request, Response, Problem, Router, Kernel and the rest) from a
+ * Shopclass checkout: $OSC_CORE, or ../osclass beside this repository. It must have the REST API.
+ * Call it before harness_plugin(), so ABS_PATH points at core.
+ *
+ * @return void
+ */
+function harness_core(): void
+{
+    $core = rtrim((string)(getenv('OSC_CORE') ?: dirname(__DIR__, 3) . '/osclass'), '/') . '/';
+    if (!is_file($core . 'oc-includes/osclass/classes/api/Kernel.php')) {
+        fwrite(STDERR, "Core's REST API not found in $core. Set OSC_CORE to a Shopclass 7.0 checkout.\n");
+        exit(2);
+    }
+    if (!defined('ABS_PATH')) {
+        define('ABS_PATH', $core);
+    }
+    require_once $core . 'oc-includes/vendor/autoload.php';
+    if (!function_exists('osc_plugins_path')) {
+        function osc_plugins_path()
+        {
+            return ABS_PATH . 'oc-content/plugins/';
+        }
+    }
+    require_once $core . 'oc-includes/osclass/helpers/hPlugins.php';
+    require_once $core . 'oc-includes/osclass/helpers/hHttpCache.php';
+    require_once $core . 'oc-includes/osclass/helpers/hApi.php';
+}

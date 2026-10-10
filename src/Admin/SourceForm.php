@@ -62,6 +62,10 @@ final class SourceForm
                 'pull' => __('This site fetches a feed on a schedule', 'listing-import'),
             ))
                 ->default('push')
+            ->text('s_key_ids', __('API key ids', 'listing-import'), __('Keys that import into this source: the ids shown under Settings > API, comma separated, e.g. 3, 5. A key listed on no source is refused.', 'listing-import'))
+                ->dependsOn('e_kind', 'push')
+                ->set('maxlength', 255)
+                ->persist(static fn ($value) => self::keyIds((string)$value))
             ->checkbox('b_enabled', __('Import from this source', 'listing-import'))
                 ->rowLabel(__('On', 'listing-import'))
                 ->default(1)
@@ -181,6 +185,16 @@ final class SourceForm
      *
      * @return array<string,string>
      */
+    /**
+     * The key ids in a typed list, as stored: digits only, no repeats, comma separated.
+     */
+    public static function keyIds(string $text): string
+    {
+        $ids = array_filter(array_map('intval', preg_split('/[^0-9]+/', $text) ?: array()));
+
+        return implode(',', array_unique($ids));
+    }
+
     private static function categories(): array
     {
         $rows = osc_db_select(

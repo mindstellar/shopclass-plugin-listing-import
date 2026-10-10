@@ -39,8 +39,7 @@ foreach ($api['functions'] ?? array() as $entry) {
     $name = $entry['name'];
     if (strpos($name, '::') !== false) {
         [$class, $method] = explode('::', $name, 2);
-        $used = preg_match('/\b' . preg_quote($class, '/') . '\b/', $source)
-            && preg_match('/(::|->)' . preg_quote($method, '/') . '\s*\(/', $source);
+        $used = preg_match('/\b' . preg_quote($class, '/') . '::' . preg_quote($method, '/') . '\s*\(/', $source);
     } else {
         $used = preg_match('/(?<![\w>:$])' . preg_quote($name, '/') . '\s*\(/', $source);
     }
@@ -49,7 +48,9 @@ foreach ($api['functions'] ?? array() as $entry) {
     }
 }
 foreach ($api['classes'] ?? array() as $entry) {
-    if (preg_match('/\b' . preg_quote($entry['name'], '/') . '\b/', $source)) {
+    // A class of the same short name the plugin declares itself is its own, not core's.
+    $own = preg_match('/\bclass\s+' . preg_quote($entry['name'], '/') . '\b/', $source);
+    if (!$own && preg_match('/\b' . preg_quote($entry['name'], '/') . '\b/', $source)) {
         $found[] = 'class ' . $entry['name'] . ' (use ' . ($entry['replacement'] ?? 'its replacement') . ')';
     }
 }

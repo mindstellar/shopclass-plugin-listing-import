@@ -79,7 +79,7 @@ final class Sources
         return osc_db_select(
             'SELECT s.*, (SELECT COUNT(*) FROM ' . DB_TABLE_PREFIX . 't_listing_import_item i WHERE i.fk_i_source_id = s.pk_i_id'
             . " AND i.e_status = 'active' AND i.fk_i_item_id IS NOT NULL) AS i_listings,"
-            . ' (SELECT COUNT(*) FROM ' . DB_TABLE_PREFIX . 't_listing_import_key k WHERE k.fk_i_source_id = s.pk_i_id AND k.b_enabled = 1) AS i_keys'
+            . " (CASE WHEN s.s_key_ids = '' THEN 0 ELSE LENGTH(s.s_key_ids) - LENGTH(REPLACE(s.s_key_ids, ',', '')) + 1 END) AS i_keys"
             . ' FROM ' . DB_TABLE_PREFIX . 't_listing_import_source s ORDER BY s.pk_i_id'
         );
     }
@@ -106,8 +106,8 @@ final class Sources
     }
 
     /**
-     * Delete a source. Its listings stay; only the record of where they came from goes. A
-     * source keys still import into cannot be deleted, and neither can the last push source.
+     * Delete a source. Its listings stay; only the record of where they came from goes. The
+     * last push source cannot be deleted.
      *
      * @param int $id
      *
@@ -115,17 +115,11 @@ final class Sources
      */
     private static function delete(int $id): void
     {
-        $p    = DB_TABLE_PREFIX . 't_listing_import_';
-        $keys = (int)osc_db_scalar('SELECT COUNT(*) FROM ' . $p . 'key WHERE fk_i_source_id = ? AND b_enabled = 1', array($id));
-        if ($keys > 0) {
-            osc_add_flash_error_message(__('API keys still import into this source. Revoke them first.', 'listing-import'), 'admin');
-
-            return;
-        }
+        $p      = DB_TABLE_PREFIX . 't_listing_import_';
         $kind   = osc_db_scalar('SELECT e_kind FROM ' . $p . 'source WHERE pk_i_id = ?', array($id));
         $pushes = (int)osc_db_scalar('SELECT COUNT(*) FROM ' . $p . "source WHERE e_kind = 'push'");
         if ($kind === 'push' && $pushes === 1) {
-            osc_add_flash_error_message(__('Keys that name no source import into the last push source, so it cannot be deleted.', 'listing-import'), 'admin');
+            osc_add_flash_error_message(__('The last push source cannot be deleted.', 'listing-import'), 'admin');
 
             return;
         }

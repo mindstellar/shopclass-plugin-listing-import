@@ -9,92 +9,28 @@
  * Stand-ins for the parts of the API that need a database or a running site.
  */
 
+use mindstellar\api\ApiCall;
+use mindstellar\api\ProblemException;
+use mindstellar\apikey\Credential;
+use mindstellar\apikey\CredentialKind;
+use mindstellar\api\Request;
+use mindstellar\api\Response;
 use mindstellar\listingimport\Api;
-use mindstellar\listingimport\Auth\FailureCounter;
-use mindstellar\listingimport\Auth\KeyRepository;
-use mindstellar\listingimport\Auth\KeyStore;
-
-/** Keys in an array. */
-final class MemoryKeyRepository implements KeyRepository
-{
-    /** @var array<int,array<string,mixed>> */
-    public array $rows = array();
-
-    public function findByKeyId(string $keyId): ?array
-    {
-        foreach ($this->rows as $row) {
-            if ($row['s_key_id'] === $keyId) {
-                return $row;
-            }
-        }
-
-        return null;
-    }
-
-    public function find(int $id): ?array
-    {
-        return $this->rows[$id] ?? null;
-    }
-
-    public function insert(array $row): int
-    {
-        $id                = count($this->rows) + 1;
-        $this->rows[$id]   = $row + array('pk_i_id' => $id, 'dt_last_used' => null, 's_last_ip' => '');
-
-        return $id;
-    }
-
-    public function update(int $id, array $fields): void
-    {
-        $this->rows[$id] = $fields + $this->rows[$id];
-    }
-
-    public function all(): array
-    {
-        return array_reverse(array_values($this->rows));
-    }
-}
-
-/** Failed checks counted in memory, with the same limit as the real one. */
-final class MemoryFailureCounter extends FailureCounter
-{
-    public int $count = 0;
-
-    public function exceeded(): bool
-    {
-        return $this->count >= self::MAX;
-    }
-
-    public function record(): void
-    {
-        $this->count++;
-    }
-}
 
 /**
- * An API over in-memory keys, with a clock the test can move.
- *
- * @param int $perMinute
+ * The API handlers over in-memory stores. Key 1 is linked to source 1.
  *
  * @return Api
  */
-function fake_api(int $perMinute = 60): Api
+function fake_api(): Api
 {
-    $GLOBALS['__now']      = $GLOBALS['__now'] ?? 1790000000;
-    $GLOBALS['__repo']     = new MemoryKeyRepository();
-    $GLOBALS['__failures'] = new MemoryFailureCounter();
-    $GLOBALS['__hits']     = array();
-    $GLOBALS['__keys']     = new KeyStore($GLOBALS['__repo'], 'test-pepper', static fn () => $GLOBALS['__now'], static function (int $id, int $perMinute): bool {
-        $bucket = $id . '@' . intdiv($GLOBALS['__now'], 60);
-
-        return ($GLOBALS['__hits'][$bucket] = ($GLOBALS['__hits'][$bucket] ?? 0) + 1) <= $perMinute;
-    });
     $GLOBALS['__store']    = new MemoryStore();
     $GLOBALS['__listings'] = new MemoryListings();
+    $GLOBALS['__store']->keySources[1] = 1;
 
-    $GLOBALS['__jobs']     = array();
-    $importer              = fake_importer();
-    $batch                 = new \mindstellar\listingimport\Import\Batch(
+    $GLOBALS['__jobs'] = array();
+    $importer          = fake_importer();
+    $batch             = new \mindstellar\listingimport\Import\Batch(
         $importer,
         $GLOBALS['__store'],
         $GLOBALS['__listings'],
@@ -103,7 +39,42 @@ function fake_api(int $perMinute = 60): Api
         }
     );
 
-    return new Api($GLOBALS['__keys'], $GLOBALS['__failures'], $perMinute, $importer, $GLOBALS['__store'], $batch, $GLOBALS['__listings']);
+    return new Api($importer, $GLOBALS['__store'], $batch, $GLOBALS['__listings']);
+}
+
+/**
+ * An admin key, as core's authenticator hands it to a handler.
+ *
+ * @param array<int,string> $scopes
+ */
+function fake_key(int $id = 1, array $scopes = array(Api::WRITE)): Credential
+{
+    return new Credential(CredentialKind::KEY, $scopes, null, 1, $id);
+}
+
+/**
+ * Call a handler as core's kernel would, and return what it answers: a thrown ProblemException is
+ * the problem response.
+ *
+ * @param array<string,string> $args   the route's placeholders
+ * @param array<mixed>|null    $body   sent as JSON
+ */
+function api_call(Api $api, string $handler, Credential $key, array $args = array(), ?array $body = null, ?string $rawBody = null): Response
+{
+    $request = new Request('POST', 'v1/x', array(), array('Content-Type' => 'application/json'), '203.0.113.9', $rawBody ?? ($body === null ? '' : json_encode($body)));
+    try {
+        return $api->$handler(new ApiCall($request, $key, $args));
+    } catch (ProblemException $e) {
+        return $e->response();
+    }
+}
+
+/**
+ * The first error's code, or null for a success.
+ */
+function api_code(Response $response): ?string
+{
+    return $response->body()['code'] ?? null;
 }
 
 /**
@@ -205,6 +176,14 @@ final class MemoryStore implements \mindstellar\listingimport\Import\Store
     public function source(?int $id): ?\mindstellar\listingimport\Import\Source
     {
         return $this->sources[$id ?? 1] ?? null;
+    }
+
+    /** @var array<int,int> key id => source id */
+    public array $keySources = array();
+
+    public function sourceForKey(int $credentialId): ?\mindstellar\listingimport\Import\Source
+    {
+        return $this->sources[$this->keySources[$credentialId] ?? 0] ?? null;
     }
 
     public function mapped(int $sourceId, string $externalId): ?array

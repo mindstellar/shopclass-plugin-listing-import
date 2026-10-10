@@ -31,10 +31,7 @@ final class Plugin
     /** Settings page id, and the preference section its values are stored under. */
     public const PAGE = 'listing-import';
 
-    /** The route hook every API request arrives on. */
-    public const ROUTE = 'listing-import-api';
-
-    public const VERSION = '0.2.1';
+    public const VERSION = '0.3.0';
 
     /**
      * Create the tables.
@@ -87,6 +84,16 @@ final class Plugin
             new DbStore(),
             new Fetcher(new AddressGuard(), new CurlTransport(10), self::tempDir())
         );
+    }
+
+    /**
+     * The REST API handlers, built on the first request that reaches one.
+     *
+     * @return Api
+     */
+    public static function api(): Api
+    {
+        return new Api(self::importer(), new DbStore(), self::batch(), new CoreListings());
     }
 
     /**

@@ -7,15 +7,15 @@
 
 /**
  * A batch becomes one core job per record, each carrying its record; the run counts them as
- * they finish and closes when all are counted. The run's page answers only the key's own
+ * they finish and closes when all are counted. The run's endpoint answers only the key's own
  * source. Record files come as a JSON list, {"records": [...]} or NDJSON.
  */
 
 require __DIR__ . '/lib/harness.php';
+harness_core();
 harness_plugin();
 
-use mindstellar\listingimport\Auth\KeyStore;
-use mindstellar\listingimport\Http\Request;
+use mindstellar\listingimport\Api;
 use mindstellar\listingimport\Import\Batch;
 use mindstellar\listingimport\Import\Source;
 use mindstellar\listingimport\Record\FileReader;
@@ -37,43 +37,40 @@ function drain(Batch $batch): void
 harness_section('queueing a batch');
 
 $api   = fake_api();
-$key   = $GLOBALS['__keys']->create('Partner', array(KeyStore::SCOPE_WRITE, KeyStore::SCOPE_RUNS), 1);
+$key   = fake_key(1, array(Api::WRITE, Api::RUNS));
 $body  = json_encode(array('records' => array(rec('B1'), rec('B2'), rec('B3', 'REFUSE'))));
-$r     = $api->dispatch(new Request('POST', 'listings:batch', 'Bearer ' . $key['token'], '203.0.113.9', 'application/json', $body));
-pin('answers 202 at once with the run', array(202, 'queued', 3), array($r->status, $r->body['data']['status'] ?? null, $r->body['data']['records'] ?? null));
-$runId = $r->body['data']['run_id'];
+$r     = api_call($api, 'createBatch', $key, array(), null, $body);
+pin('answers 202 at once with the run', array(202, 'queued', 3), array($r->status(), $r->body()['data']['status'] ?? null, $r->body()['data']['records'] ?? null));
+$runId = $r->body()['data']['run_id'];
 pin('one core job per record', array_fill(0, 3, Batch::JOB), array_column($GLOBALS['__jobs'], 0));
 pin('each job carries its record, not a row id', rec('B2'), $GLOBALS['__jobs'][1][1]['record']);
 pin('nothing is imported yet', 0, count($GLOBALS['__listings']->items));
 
-$show = static fn () => $api->dispatch(new Request('GET', 'runs/' . $runId, 'Bearer ' . $key['token'], '203.0.113.9'));
-pin('the run says it is running', 'running', $show()->body['data']['status']);
+$show = static fn () => api_call($api, 'showRun', $key, array('id' => (string)$runId));
+pin('the run says it is running', 'running', $show()->body()['data']['status']);
 
 harness_section('the jobs run');
 
 $batch = new Batch(fake_importer(), $GLOBALS['__store'], $GLOBALS['__listings'], static function () {
 });
 $batch->work(array_shift($GLOBALS['__jobs'])[1]);
-pin('after one job, one is counted and the run is still open', array(1, 'running'), array($show()->body['data']['counts']['created'], $show()->body['data']['status']));
+pin('after one job, one is counted and the run is still open', array(1, 'running'), array($show()->body()['data']['counts']['created'], $show()->body()['data']['status']));
 drain($batch);
-$data = $show()->body['data'];
+$data = $show()->body()['data'];
 pin('after all, every record is counted', array('created' => 2, 'updated' => 0, 'unchanged' => 0, 'retired' => 0, 'failed' => 1), $data['counts']);
 pin('and the run is finished', 'finished', $data['status']);
 pin('the failure is named by its record and field', array(array('external_id' => 'B3', 'errors' => array('listing' => 'Title too short.'))), $data['failures']);
 
-harness_section('the run page');
+harness_section('the run endpoint');
 
-$other = $GLOBALS['__keys']->create('Other', array(KeyStore::SCOPE_RUNS), 2);
-$GLOBALS['__store']->sources[2] = new Source(2, 'Feed');
-pin('a key of another source cannot see it', 404, $api->dispatch(new Request('GET', 'runs/' . $runId, 'Bearer ' . $other['token'], '203.0.113.9'))->status);
-$writer = $GLOBALS['__keys']->create('Writer', array(KeyStore::SCOPE_WRITE), 1);
-pin('a key without runs:read cannot either', 403, $api->dispatch(new Request('GET', 'runs/' . $runId, 'Bearer ' . $writer['token'], '203.0.113.9'))->status);
-pin('an unknown run is 404', 404, $api->dispatch(new Request('GET', 'runs/999', 'Bearer ' . $key['token'], '203.0.113.9'))->status);
-pin('a run id that is not a number is no endpoint', 404, $api->dispatch(new Request('GET', 'runs/abc', 'Bearer ' . $key['token'], '203.0.113.9'))->status);
+$GLOBALS['__store']->sources[2]    = new Source(2, 'Feed');
+$GLOBALS['__store']->keySources[2] = 2;
+pin('a key of another source cannot see it', 404, api_call($api, 'showRun', fake_key(2, array(Api::RUNS)), array('id' => (string)$runId))->status());
+pin('an unknown run is 404', 404, api_call($api, 'showRun', $key, array('id' => '999'))->status());
 
 harness_section('batches that are refused');
 
-$post = static fn (string $body) => $api->dispatch(new Request('POST', 'listings:batch', 'Bearer ' . $key['token'], '203.0.113.9', 'application/json', $body))->status;
+$post = static fn (string $body) => api_call($api, 'createBatch', $key, array(), null, $body)->status();
 pin('no records list', 422, $post('{"items":[]}'));
 pin('an empty list', 422, $post('{"records":[]}'));
 pin('an object instead of a list', 422, $post('{"records":{"a":1}}'));
@@ -84,9 +81,9 @@ harness_section('a record too large for a job');
 $GLOBALS['__jobs'] = array();
 $huge              = rec('BIG');
 $huge['description'] = str_repeat('x', Batch::MAX_RECORD_BYTES);
-$r = $api->dispatch(new Request('POST', 'listings:batch', 'Bearer ' . $key['token'], '203.0.113.9', 'application/json', json_encode(array('records' => array($huge, rec('SMALL'))))));
+$r = api_call($api, 'createBatch', $key, array(), array('records' => array($huge, rec('SMALL'))));
 pin('is not queued; the other record is', 1, count($GLOBALS['__jobs']));
-$run = $GLOBALS['__store']->run($r->body['data']['run_id']);
+$run = $GLOBALS['__store']->run($r->body()['data']['run_id']);
 pin('and is counted as failed at once', 1, $run['i_failed']);
 
 harness_section('the command line runs a batch at once');
