@@ -30,7 +30,17 @@ jobs:
           [ "$version" = "$tag" ] || { echo "tag $GITHUB_REF_NAME does not match Version: $version" >&2; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # The API tests load core's REST API. Shopclass 7.0 is on develop until it is released.
+      - name: Check out Shopclass 7.0
+        uses: actions/checkout@v4
+        with:
+          repository: mindstellar/shopclass
+          ref: develop
+          path: core
+
       - name: Run the tests
+        env:
+          OSC_CORE: ${{ github.workspace }}/core/
         run: ./tests/run.sh
 
       - name: Build the zip
@@ -39,7 +49,7 @@ jobs:
           slug=listing-import
           version="${{ steps.version.outputs.version }}"
           mkdir -p "dist/$slug"
-          rsync -a --exclude=.git --exclude-from=.distignore ./ "dist/$slug/"
+          rsync -a --exclude=.git --exclude=/core --exclude=/dist --exclude-from=.distignore ./ "dist/$slug/"
           ( cd dist && zip -X -r -q "${slug}_${version}.zip" "$slug" )
           sha256sum "dist/${slug}_${version}.zip" | awk '{print $1}' > "dist/${slug}_${version}.zip.sha256"
           echo "zip=dist/${slug}_${version}.zip" >> "$GITHUB_OUTPUT"
