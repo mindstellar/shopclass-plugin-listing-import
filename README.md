@@ -15,7 +15,7 @@ moderation, spam checks, listing limits and expiry.
 
 ## Requirements
 
-- ShopClass 7.0 or later
+- Shopclass 7.0 or newer
 - PHP 8.0 or later
 
 ## Install
