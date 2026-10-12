@@ -45,6 +45,10 @@ jobs:
           ref: ${{ steps.core.outputs.ref }}
           path: core
 
+      # Core no longer commits its vendor tree, so install it.
+      - name: Install Shopclass dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --working-dir=core
+
       - name: Run the tests
         env:
           OSC_CORE: ${{ github.workspace }}/core/
