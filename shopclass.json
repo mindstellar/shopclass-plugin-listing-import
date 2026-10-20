@@ -2,6 +2,7 @@
   "$schema": "../schema/package.schema.json",
   "slug": "listing-import",
   "type": "plugin",
+  "modes": ["classifieds", "shop"],
   "categories": [
     "admin-tools"
   ],
