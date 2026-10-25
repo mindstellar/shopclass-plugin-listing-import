@@ -1,8 +1,6 @@
 # Listing Import
 
-Import listings into ShopClass from other systems: a keyed REST API, and scheduled JSON,
-CSV and RSS feeds. Every listing goes through the same checks as one posted by hand:
-moderation, spam checks, listing limits and expiry.
+Imports listings from other systems into Shopclass, through a keyed REST API or scheduled JSON, NDJSON, CSV and RSS feeds. Every listing goes through the same checks as one posted by hand: moderation, spam checks, listing limits and expiry.
 
 ![Import sources](assets/screenshot-1.png)
 
@@ -15,28 +13,44 @@ moderation, spam checks, listing limits and expiry.
 
 ## Requirements
 
-- Shopclass 7.0 or newer
+- Shopclass 7.0 or later
 - PHP 8.0 or later
+- For the API: the REST API switched on under Settings → API
 
 ## Install
 
-From the admin: **Plugins → Manage plugins → Browse**, find *Listing Import*, then
-**Install**. Or from the command line:
+1. Open Plugins → Browse (or upload the zip from the GitHub release).
+2. Install.
+3. Activate.
 
-```bash
-php oc-cli.php market:install listing-import
+(`php oc-cli.php market:install listing-import` also works.)
+
+## Set up
+
+Find everything under Plugins → Listing import: *Sources*, *Import a file*, *Settings*, *Help*.
+
+**Pull a feed**
+
+1. Open Plugins → Listing import → Sources and press *Add source*.
+2. Give the feed address, its format and how often to fetch it. Formats: JSON, NDJSON, CSV, or another Shopclass site's RSS. Limit: 5,000 records and 20 MB.
+3. If the feed names fields differently, map them one per line:
+
+```
+id = external_id
+Headline = title
+Town = location.city
+Cost = price.amount
 ```
 
-## Check that it works
+4. Press *Preview* to see what a fetch would import. Nothing changes. Press *Fetch now* to queue a fetch at once.
 
-The plugin's endpoints are part of the site's REST API, under `/api/v1/ext/listing-import/`.
-The API must be switched on under **Settings → API**. The site describes every endpoint, this
-plugin's included, at `/api/v1/openapi.json`.
+A JSON feed can be a plain list or an object holding one list, such as `{"products": [...]}`.
 
-## Make a key
+**Let a partner push listings**
 
-Keys are the site's own. Under **Settings → API**, make an admin key and tick the Listing
-import permissions:
+1. Under Settings → API, make an admin key and tick the Listing import permissions (table below). The key is shown once.
+2. Open Plugins → Listing import → Sources, edit the push source, and list the key's id under *API key ids*. A key linked to no source is refused. A key sees only its own source's listings and runs.
+3. The partner sends the key on every request: `Authorization: Bearer <key>`.
 
 | Permission | Lets the key |
 |---|---|
@@ -44,25 +58,33 @@ import permissions:
 | `ext:listing-import:delete` | delete a listing it imported |
 | `ext:listing-import:runs` | read how a batch went |
 
-Then link the key to the push source it imports into: **Plugins → Listing import → Sources**,
-edit the source and list the key's id under *API key ids*. A key linked to no source is refused.
-A key sees only its own source's listings and runs.
-
-The key is shown once. Keep it safe. Send it on every request:
-
-```
-Authorization: Bearer <key>
-```
-
-Or make one from the command line:
+Or make a key from the command line:
 
 ```bash
 php oc-cli.php api:key:create --admin=<username> --name="Partner site" --scopes=ext:listing-import:write,ext:listing-import:runs
 ```
 
-Only admin keys can hold these permissions. Request limits are the site's, under **Settings → API**.
+Only admin keys can hold these permissions. Request limits are the site's, under Settings → API.
 
-## Send listings
+**Import a file**
+
+Open Plugins → Listing import → Import a file. Upload a JSON, NDJSON, CSV or RSS file (up to 20 MB and 5,000 records) and choose its source. The preview shows how each record would be imported. Nothing changes until you press *Import*. Listings the file leaves out are not touched.
+
+## How it works
+
+- A listing whose record leaves a feed is deactivated, not deleted. It comes back when the record returns. If most records in a fetch fail, nothing is deactivated.
+- A listing you delete in the admin stays deleted until its record changes. Then it is created again.
+- Batches and feeds run with the site's background jobs. Make sure cron runs.
+
+## Notes / limits
+
+- The API is part of the site's REST API, under `/api/v1/ext/listing-import/`. The site describes every endpoint at `/api/v1/openapi.json`.
+- Batch: up to 200 records. Request body: up to 1 MB.
+- Images: up to 20 per record; JPEG, PNG, GIF or WebP, 8 MB each. The first 10 are fetched; the rest come back as a warning.
+
+## For developers
+
+### Send listings
 
 | Request | What it does |
 |---|---|
@@ -122,7 +144,7 @@ curl -X POST https://example.com/api/v1/ext/listing-import/listings:batch \
 
 The site's background jobs import the records. Check `GET /api/v1/ext/listing-import/runs/42` for the result.
 
-## Errors and limits
+### Errors
 
 Errors follow RFC 9457 (`application/problem+json`), as the rest of the site's API does:
 
@@ -147,40 +169,7 @@ Errors follow RFC 9457 (`application/problem+json`), as the rest of the site's A
 Request limits, and the lockout of an address that keeps sending a wrong key, are the site's
 API settings.
 
-The site's own rules apply to every listing: moderation, spam checks, listing limits, expiry.
-
-## Pull a feed
-
-**Plugins → Listing import → Sources**, then the **+** button. Give the feed address, its format, and how
-often to fetch it. Formats: JSON, NDJSON, CSV, or another ShopClass site's RSS, up to 5,000
-records and 20 MB. A JSON feed
-may be a plain list or an object holding one list, such as `{"products": [...]}`.
-
-If the feed names its fields differently, map them one per line:
-
-```
-id = external_id
-Headline = title
-Town = location.city
-Cost = price.amount
-```
-
-**Preview** shows what a fetch would import, without changing anything. **Fetch now** queues a
-fetch at once.
-
-A listing whose record leaves the feed is deactivated, not deleted. It comes back when the
-record returns. If most records in a fetch fail, nothing is deactivated.
-
-A listing you delete in the admin stays deleted until its record changes. Then it is created
-again.
-
-## Import a file
-
-**Plugins → Listing import → Import a file.** Upload a JSON, NDJSON, CSV or RSS file, up to
-20 MB and 5,000 records, and choose its source. The preview shows how each record would be imported. Nothing
-changes until you click **Import**. Listings the file leaves out are not touched.
-
-## Command line
+### Command line
 
 ```bash
 php oc-cli.php import:run --file=records.json --dry-run   # check a file, change nothing
@@ -189,8 +178,10 @@ php oc-cli.php import:status                              # the latest runs
 php oc-cli.php jobs:work                                  # run queued batches and feeds now
 ```
 
-Batches and feeds run with the site's background jobs. Make sure the site's cron runs.
+## Support
 
-## Licence
+https://github.com/mindstellar/shopclass-plugin-listing-import/issues
 
-GPL-3.0-or-later. See `LICENSE`.
+## License
+
+GPL-3.0-or-later
