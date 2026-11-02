@@ -96,6 +96,27 @@ function harness_plugin(): void
 }
 
 /**
+ * Path of a core class file from its 7.0 folder path, such as 'billing/CartPricer.php'. Uses
+ * oc-includes/classes when the file is there, else the 7.0 folder oc-includes/osclass/classes.
+ */
+function core_class_file(string $core, string $rel): string
+{
+    $top   = strtok($rel, '/');
+    $group = array('category' => 'listing/category', 'fields' => 'listing/fields', 'moderation' => 'listing/moderation',
+        'auth' => 'user/auth', 'apikey' => 'user/apikey', 'privacy' => 'user/privacy', 'currency' => 'billing/currency',
+        'push' => 'messaging/push', 'live' => 'messaging/live', 'image' => 'media/image');
+    foreach (array('pages', 'comment', 'widgets', 'menu', 'seo') as $name) {
+        $group[$name] = 'content/' . $name;
+    }
+    foreach (explode(' ', 'boot container event http routing cli database migration cache job mail logger security storage settings install upgrade exception base utility form language theme site model') as $name) {
+        $group[$name] = 'core/' . $name;
+    }
+    $new = rtrim($core, '/') . '/oc-includes/classes/' . ($group[$top] ?? $top) . substr($rel, strlen($top));
+
+    return is_file($new) ? $new : rtrim($core, '/') . '/oc-includes/osclass/classes/' . $rel;
+}
+
+/**
  * Load core's API classes (Request, Response, Problem, Router, Kernel and the rest) from a
  * Shopclass checkout: $OSC_CORE, or ../osclass beside this repository. It must have the REST API.
  * Call it before harness_plugin(), so ABS_PATH points at core.
@@ -105,7 +126,7 @@ function harness_plugin(): void
 function harness_core(): void
 {
     $core = rtrim((string)(getenv('OSC_CORE') ?: dirname(__DIR__, 3) . '/osclass'), '/') . '/';
-    if (!is_file($core . 'oc-includes/osclass/classes/api/Kernel.php')) {
+    if (!is_file(core_class_file($core, 'api/Kernel.php'))) {
         fwrite(STDERR, "Core's REST API not found in $core. Set OSC_CORE to a Shopclass 7.0 checkout.\n");
         exit(2);
     }
