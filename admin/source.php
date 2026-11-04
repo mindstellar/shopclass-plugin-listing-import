@@ -20,15 +20,11 @@ if (!Guard::view(__('Only an administrator can manage import sources.', 'listing
     return;
 }
 
-// The id is the route's; a row that does not exist is an add.
-$id = Params::getParamInt('id') ?: null;
-if ($id !== null && osc_db_scalar('SELECT 1 FROM ' . DB_TABLE_PREFIX . SourceForm::TABLE . ' WHERE pk_i_id = ?', array($id)) === null) {
-    $id = null;
-}
+$id     = Sources::editId();
 $page   = SourceForm::register($id);
 $values = Sources::$retry ?? osc_settings_values($page, $id);
 
-osc_admin_page_head($id === null ? __('Add import source', 'listing-import') : __('Edit import source', 'listing-import'), array(
+osc_admin_page_head(Sources::editTitle(), array(
     array('label' => __('Back to sources', 'listing-import'), 'url' => osc_route_admin_url(Sources::ROUTE), 'variant' => 'dim'),
 ));
 ?>

@@ -30,6 +30,23 @@ final class Sources
     /** @var array<string,mixed>|null a refused save's values, for the editor to show again */
     public static ?array $retry = null;
 
+    /** The source the edit screen is for, or null for an add: the route's id, if that row exists. */
+    public static function editId(): ?int
+    {
+        $id = Params::getParamInt('id') ?: null;
+        if ($id !== null && osc_db_scalar('SELECT 1 FROM ' . DB_TABLE_PREFIX . SourceForm::TABLE . ' WHERE pk_i_id = ?', array($id)) === null) {
+            return null;
+        }
+
+        return $id;
+    }
+
+    /** The edit screen's title: Edit for a source that exists, else Add. */
+    public static function editTitle(): string
+    {
+        return self::editId() === null ? __('Add import source', 'listing-import') : __('Edit import source', 'listing-import');
+    }
+
     /**
      * Act on a post to one of the screens.
      *

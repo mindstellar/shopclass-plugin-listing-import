@@ -58,7 +58,8 @@ final class Menu
             ),
         ));
         osc_admin_plugin_page(Sources::EDIT_ROUTE, array(
-            'title' => __('Import source', 'listing-import'),
+            'title'   => __('Import source', 'listing-import'),
+            'heading' => static fn (): string => Sources::editTitle(),
             'help'  => self::help(__('Defaults fill in what a record leaves out. Rules decide whether new listings wait for an admin and count against the owner\'s listing limit.', 'listing-import')),
         ));
         osc_admin_plugin_page(Sources::PREVIEW_ROUTE, array(
