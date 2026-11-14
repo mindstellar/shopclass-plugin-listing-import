@@ -118,14 +118,14 @@ function core_class_file(string $core, string $rel): string
 
 /**
  * Load core's API classes (Request, Response, Problem, Router, Kernel and the rest) from a
- * Shopclass checkout: $OSC_CORE, or ../osclass beside this repository. It must have the REST API.
+ * Shopclass checkout: $OSC_CORE, or ../shopclass beside this repository. It must have the REST API.
  * Call it before harness_plugin(), so ABS_PATH points at core.
  *
  * @return void
  */
 function harness_core(): void
 {
-    $core = rtrim((string)(getenv('OSC_CORE') ?: dirname(__DIR__, 3) . '/osclass'), '/') . '/';
+    $core = rtrim((string)(getenv('OSC_CORE') ?: dirname(__DIR__, 3) . '/shopclass'), '/') . '/';
     if (!is_file(core_class_file($core, 'api/Kernel.php'))) {
         fwrite(STDERR, "Core's REST API not found in $core. Set OSC_CORE to a Shopclass 7.0 checkout.\n");
         exit(2);
